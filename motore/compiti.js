@@ -7,7 +7,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { chiediJson } from "./claude.js";
+import { chiediJson } from "./chiedi-claude.js";
 import { log } from "./log.js";
 
 const esegui = promisify(execFile);
