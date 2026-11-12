@@ -172,9 +172,8 @@ export default function Oggi() {
         </div>
       )}
 
-      {esame && (
-        <ChiediCarta onApri={setChiedi} />
-      )}
+      {esame && <ChiediCarta onApri={setChiedi} />}
+      <CartaMotore />
 
       {argomenti.length > 0 && (
         <>
@@ -208,6 +207,59 @@ export default function Oggi() {
           </button>
         </Foglio>
       )}
+    </div>
+  );
+}
+
+/** Cosa sta facendo il PC, e il pulsante per metterlo in pausa (per non finire la quota del Pro). */
+function CartaMotore() {
+  const { motore, inPausa, impostaPausa } = useDati();
+  const [errore, setErrore] = useState("");
+  const [lavoro, setLavoro] = useState(false);
+  const vivo = motore && Date.now() - new Date(motore.aggiornato).getTime() < 15 * 60000;
+
+  let titolo = "Il PC non risponde";
+  let dettaglio = "È spento, oppure il motore di Virgilio non è acceso. Le schede restano ferme; le tue richieste le trova quando riparte.";
+  if (inPausa && vivo) {
+    titolo = "In pausa";
+    dettaglio = motore?.stato === "pausa" ? "Il PC non fa lavori nuovi, così non consumi la quota del Pro. Le domande a Virgilio funzionano lo stesso." : "Finisce la scheda che sta scrivendo e poi si ferma.";
+  } else if (inPausa) {
+    titolo = "In pausa";
+    dettaglio = "Quando il PC si accende resta fermo finché non premi Riprendi.";
+  } else if (vivo && motore) {
+    if (motore.stato === "lavora") {
+      titolo = "Al lavoro";
+      dettaglio = motore.cosa ?? "";
+    } else if (motore.stato === "limite") {
+      titolo = "Aspetta che si rinnovi la quota";
+      dettaglio = "La quota del tuo Claude Pro è finita: riprende da solo appena torna disponibile.";
+    } else {
+      titolo = "Ha finito tutto";
+      dettaglio = "Non c'è niente da preparare: aspetta nuovi materiali.";
+    }
+  }
+
+  async function cambia() {
+    setErrore("");
+    setLavoro(true);
+    try {
+      await impostaPausa(!inPausa);
+    } catch {
+      setErrore("Non riesco a salvarlo. Controlla la connessione.");
+    } finally {
+      setLavoro(false);
+    }
+  }
+
+  return (
+    <div className="carta">
+      <div className="etichetta">Virgilio sul PC</div>
+      <h3 style={{ margin: "0 0 4px" }}>{titolo}</h3>
+      {dettaglio && <p className="tenue piccolo" style={{ margin: "0 0 10px" }}>{dettaglio}</p>}
+      {errore && <div className="avviso" style={{ marginBottom: 10 }}>{errore}</div>}
+      <button className={`btn btn-largo ${inPausa ? "" : "btn-bordo"}`} disabled={lavoro} onClick={cambia}>
+        {inPausa ? "▶️ Riprendi il lavoro" : "⏸️ Metti in pausa"}
+      </button>
     </div>
   );
 }

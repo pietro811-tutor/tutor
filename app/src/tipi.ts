@@ -156,3 +156,10 @@ export interface Progressi {
   giorni_studio: string[];
   richieste: { id: string; tipo: TipoRichiesta; argomento?: string; creata: string; testo?: string }[];
 }
+
+export interface StatoMotore {
+  // M  motore.json: cosa sta facendo il motore sul PC
+  stato: "lavora" | "libero" | "pausa" | "limite";
+  cosa?: string;
+  aggiornato: string;
+}

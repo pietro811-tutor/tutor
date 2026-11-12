@@ -3,6 +3,7 @@ import { ArchivioGitHub, ArchivioLocale, fileInBase64, testoInBase64, type Archi
 import { domandaConGemini, leggiChiaveGemini, pennaConGemini, valutaConGemini } from "./gemini";
 import type {
   Esame,
+  StatoMotore,
   MaterialeMeta,
   Programma,
   Progressi,
@@ -82,6 +83,8 @@ interface Dati {
   sincronizzando: boolean;
   esame?: Esame; // la materia che stai studiando adesso
   esami: Esame[]; // tutte le tue materie
+  inPausa: boolean; // pausa decisa da te: il PC non fa lavori nuovi
+  motore?: StatoMotore;
   programma?: Programma;
   schede: Record<string, Scheda>;
   materiali: MaterialeVisto[];
@@ -96,6 +99,7 @@ interface Azioni {
   caricaFile(file: Blob, nome: string, tipo: MaterialeMeta["tipo"], gruppo?: string): Promise<void>;
   salvaEsame(e: Esame): Promise<void>;
   scegliMateria(slug: string): void;
+  impostaPausa(attiva: boolean): Promise<void>;
   creaMateria(nome: string, tipo: Esame["tipo"], data?: string): Promise<string>;
   aspettaRisposta(id: string, ogniMs?: number): () => void;
 }
@@ -114,6 +118,7 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     pronto: false,
     sincronizzando: false,
     esami: [],
+    inPausa: false,
     schede: {},
     materiali: [],
     risposte: {},
@@ -210,6 +215,9 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         scriviLocale(CHIAVE_PROGRESSI, progressiRef.current);
       }
 
+      const pausa = await leggiJson<{ attiva: boolean }>("pausa.json");
+      const motore = await leggiJson<StatoMotore>("motore.json");
+
       const risposte: Record<string, Risposta> = {};
       for (const r of progressiRef.current.richieste) {
         const ris = await leggiJson<Risposta>(`risposte/${r.id}.json`);
@@ -224,6 +232,8 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         sincronizzando: false,
         esame: esame ?? undefined,
         esami,
+        inPausa: pausa?.attiva === true,
+        motore: motore ?? undefined,
         programma: programma ?? undefined,
         schede,
         materiali,
@@ -356,6 +366,21 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     [archivio],
   );
 
+  const impostaPausa = useCallback<Azioni["impostaPausa"]>(
+    async (attiva) => {
+      if (!archivio) return;
+      const prima = dati.inPausa;
+      setDati((d) => ({ ...d, inPausa: attiva }));
+      try {
+        await archivio.scrivi("pausa.json", testoInBase64(JSON.stringify({ attiva, aggiornata: new Date().toISOString() }, null, 1)), attiva ? "Pausa" : "Si riprende");
+      } catch (e) {
+        setDati((d) => ({ ...d, inPausa: prima }));
+        throw e;
+      }
+    },
+    [archivio, dati.inPausa],
+  );
+
   const scegliMateria = useCallback<Azioni["scegliMateria"]>(
     (slug) => {
       materiaRef.current = slug;
@@ -401,8 +426,8 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   }, [sincronizza, salvaProgressiRemoto]);
 
   const valore = useMemo(
-    () => ({ ...dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, aspettaRisposta }),
-    [dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, aspettaRisposta],
+    () => ({ ...dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
+    [dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
   );
   return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
 }

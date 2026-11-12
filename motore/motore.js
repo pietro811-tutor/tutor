@@ -52,6 +52,21 @@ function mettiInPausa(motivo) {
   pausaFino = Date.now() + PAUSA_LIMITE_MS;
   log(`Limite dell'abbonamento raggiunto (${motivo.slice(0, 120)}). Riposo 20 minuti e riprendo da solo.`);
 }
+/** "Pausa" decisa da te dall'app (pausa.json, scritto solo dal telefono): ferma il lavoro di fondo, le domande dal vivo continuano. */
+function pausaDellUtente() {
+  return leggiJson(path.join(radice, "pausa.json"), {})?.attiva === true;
+}
+
+/** Dice all'app cosa sta facendo il motore (motore.json, scritto solo da qui). Riscrive solo se cambia, o ogni 10 minuti come "sono vivo". */
+let ultimoStato = { stato: "", cosa: "", quando: 0 };
+async function segnalaStato(stato, cosa = "") {
+  const cambiato = stato !== ultimoStato.stato || cosa !== ultimoStato.cosa;
+  if (!cambiato && Date.now() - ultimoStato.quando < 10 * 60000) return;
+  ultimoStato = { stato, cosa, quando: Date.now() };
+  scriviJson(path.join(radice, "motore.json"), { stato, cosa, aggiornato: new Date().toISOString() });
+  await archivio.pubblica("Stato del motore").catch(() => {});
+}
+
 function puoRiprovare(chiave) {
   const f = fallimenti.get(chiave);
   return !f || Date.now() > f.finoA;
@@ -195,11 +210,23 @@ async function giroDiFondo() {
   for (;;) {
     let lavoro = null;
     try {
-      lavoro = inPausa() ? null : prossimoLavoro();
-      if (!lavoro) {
+      if (pausaDellUtente()) {
+        await segnalaStato("pausa");
+        await dormi(10000);
+        continue;
+      }
+      if (inPausa()) {
+        await segnalaStato("limite");
         await dormi(15000);
         continue;
       }
+      lavoro = prossimoLavoro();
+      if (!lavoro) {
+        await segnalaStato("libero");
+        await dormi(15000);
+        continue;
+      }
+      await segnalaStato("lavora", lavoro.descrizione);
       await lavoro.fai();
       fallimenti.delete(lavoro.chiave);
       await archivio.pubblica(lavoro.descrizione);
