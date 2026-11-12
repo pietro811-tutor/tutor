@@ -95,12 +95,12 @@ interface Dati {
   materiali: MaterialeVisto[];
   risposte: Record<string, Risposta>;
   progressi: Progressi;
-  audio: Record<string, string>; // schede che hanno l'audio pronto (id -> versione)
+  audio: Record<string, Record<string, string>>; // audio pronti: scheda -> voce -> versione
 }
 
 interface Azioni {
   /** L'audio della scheda (scaricato una volta, poi resta sul telefono). Ritorna un indirizzo da dare a <audio>. */
-  caricaAudio(id: string): Promise<string | null>;
+  caricaAudio(id: string, voce: string): Promise<string | null>;
   sincronizza(): Promise<void>;
   aggiornaProgressi(fn: (p: Progressi) => void): void;
   inviaRichiesta(tipo: TipoRichiesta, input: Record<string, unknown>, extra?: { argomento?: string; testo?: string }): Promise<string>;
@@ -203,9 +203,12 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         if (s) schede[s.id] = s;
       }
 
-      const audio: Record<string, string> = {};
+      const audio: Record<string, Record<string, string>> = {};
       for (const v of albero.current)
-        if (v.path.startsWith(`${base}/audio/`) && v.path.endsWith(".mp3")) audio[v.path.split("/").pop()!.replace(/.mp3$/, "")] = v.sha;
+        if (v.path.startsWith(`${base}/audio/`) && v.path.endsWith(".mp3")) {
+          const [id, voce] = [...v.path.split("/").pop()!.replace(/.mp3$/, "").split(/.(?=[^.]+$)/)];
+          if (id && voce) (audio[id] ??= {})[voce] = v.sha;
+        }
 
       const statoMateriali = (esame && (await leggiJson<Record<string, StatoMateriale>>(`${base}/stato-materiali.json`))) || {};
       const materiali: MaterialeVisto[] = [];
@@ -465,24 +468,24 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
 
   // l'audio si scarica una volta sola e resta nella memoria del telefono (anche senza rete)
   const caricaAudio = useCallback<Azioni["caricaAudio"]>(
-    async (id) => {
-      const sha = dati.audio[id];
+    async (id, voce) => {
+      const sha = dati.audio[id]?.[voce];
       if (!archivio || !dati.esame || !sha) return null;
-      const chiave = `https://audio.locale/${dati.esame.slug}/${id}/${sha}`;
+      const chiave = `https://audio.locale/${dati.esame.slug}/${id}.${voce}/${sha}`;
       try {
         const cache = await caches.open("tutor-audio");
         let r = await cache.match(chiave);
         if (!r) {
-          const blob = await archivio.leggiBinario(`esami/${dati.esame.slug}/audio/${id}.mp3`);
+          const blob = await archivio.leggiBinario(`esami/${dati.esame.slug}/audio/${id}.${voce}.mp3`);
           if (!blob) return null;
-          for (const k of await cache.keys()) if (k.url.startsWith(`https://audio.locale/${dati.esame.slug}/${id}/`)) await cache.delete(k);
+          for (const k of await cache.keys()) if (k.url.startsWith(`https://audio.locale/${dati.esame.slug}/${id}.${voce}/`)) await cache.delete(k);
           await cache.put(chiave, new Response(blob, { headers: { "Content-Type": "audio/mpeg" } }));
           r = await cache.match(chiave);
         }
         return r ? URL.createObjectURL(await r.blob()) : null;
       } catch {
         // niente cache: scarico e basta
-        const blob = await archivio.leggiBinario(`esami/${dati.esame.slug}/audio/${id}.mp3`).catch(() => null);
+        const blob = await archivio.leggiBinario(`esami/${dati.esame.slug}/audio/${id}.${voce}.mp3`).catch(() => null);
         return blob ? URL.createObjectURL(blob) : null;
       }
     },

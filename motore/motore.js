@@ -246,14 +246,20 @@ async function giroDiFondo() {
 
 /** Gli audio delle schede (voce gratuita sul PC, niente Claude): non si ferma con la pausa, e' solo lavoro del PC. */
 async function giroAudio() {
-  const voce = config.voce?.nome ?? "if_sara";
+  const voci = config.voce?.elenco ?? ["if_sara"]; // si fanno prima tutte le schede con la prima voce, poi con la seconda
   const velocita = config.voce?.velocita ?? 0.8;
   if (!vociPronte()) return log("Voci non installate (cartella voci): salto gli audio.");
   for (;;) {
     try {
-      const lavori = esami().flatMap((e) => audioMancanti(radice, e, voce, velocita));
+      let voce = voci[0];
+      let lavori = [];
+      for (const v of voci) {
+        voce = v;
+        lavori = esami().flatMap((e) => audioMancanti(radice, e, v, velocita));
+        if (lavori.length) break;
+      }
       if (lavori.length) {
-        log(`Audio da fare: ${lavori.length}`);
+        log(`Audio da fare (${voce}): ${lavori.length}`);
         const fatti = await generaAudio(lavori.slice(0, 6), voce, velocita);
         log(`Audio pronti: ${fatti}`);
         await archivio.pubblica("Audio delle schede");

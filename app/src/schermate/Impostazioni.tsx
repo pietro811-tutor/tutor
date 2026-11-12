@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useDati, salvaConfig, leggiConfig } from "../stato";
+import { VOCI, leggiScelteVoce, salvaScelteVoce, type ScelteVoce } from "../voceScelta";
 import { Attesa, Icone } from "../componenti";
 import { leggiChiaveGemini, modelliGemini, salvaChiaveGemini } from "../gemini";
 
@@ -56,6 +57,72 @@ function Gemini() {
   );
 }
 
+function VoceAudio() {
+  const { audio, caricaAudio } = useDati();
+  const [scelte, setScelte] = useState(leggiScelteVoce());
+  const [prova, setProva] = useState<null | (() => void)>(null);
+  const [attesa, setAttesa] = useState(false);
+  const cambia = (n: Partial<ScelteVoce>) => {
+    const v = { ...scelte, ...n };
+    setScelte(v);
+    salvaScelteVoce(v);
+  };
+  const conAudio = (voce: string) => Object.values(audio).filter((m) => m[voce]).length;
+  useEffect(() => () => prova?.(), [prova]);
+
+  async function provaVoce() {
+    if (prova) {
+      prova();
+      setProva(null);
+      return;
+    }
+    const id = Object.keys(audio).find((i) => audio[i][scelte.voce]);
+    if (!id) return;
+    setAttesa(true);
+    const url = await caricaAudio(id, scelte.voce);
+    setAttesa(false);
+    if (!url) return;
+    const a = new Audio(url);
+    a.playbackRate = scelte.velocita;
+    a.onended = () => setProva(null);
+    await a.play().catch(() => setProva(null));
+    // 15 secondi bastano per sentire voce e velocita'
+    const timer = window.setTimeout(() => {
+      a.pause();
+      setProva(null);
+    }, 15000);
+    setProva(() => () => {
+      window.clearTimeout(timer);
+      a.pause();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  return (
+    <div className="carta">
+      <h3>Voce degli audio</h3>
+      <p className="tenue piccolo">Con questa voce Virgilio ti legge i riassunti. La velocità la cambi qui, subito, senza aspettare nulla.</p>
+      <label>Voce</label>
+      <div className="riga-spaziata" style={{ gap: 8, justifyContent: "flex-start" }}>
+        {VOCI.map((v) => (
+          <button key={v.id} className={`btn btn-piccolo ${scelte.voce === v.id ? "" : "btn-tenue"}`} onClick={() => cambia({ voce: v.id })}>
+            {v.nome} {conAudio(v.id) ? `(${conAudio(v.id)} pronti)` : "(in preparazione)"}
+          </button>
+        ))}
+      </div>
+      <label htmlFor="vel">Velocità: {scelte.velocita.toFixed(2).replace(".", ",")}×</label>
+      <input id="vel" type="range" min="0.7" max="1.4" step="0.05" value={scelte.velocita} onChange={(e) => cambia({ velocita: Number(e.target.value) })} />
+      <div className="riga-spaziata piccolo tenue">
+        <span>più lenta</span>
+        <span>più veloce</span>
+      </div>
+      <button className="btn btn-tenue btn-largo" style={{ marginTop: 12 }} disabled={!conAudio(scelte.voce) || attesa} onClick={provaVoce}>
+        {attesa ? "Un attimo…" : prova ? "Ferma la prova" : "▶ Prova la voce"}
+      </button>
+    </div>
+  );
+}
+
 export default function Impostazioni({ onEsci }: { onEsci: () => void }) {
   const { esame, progressi, salvaEsame, aggiornaProgressi } = useDati();
   const [nome, setNome] = useState(progressi.nome);
@@ -106,6 +173,7 @@ export default function Impostazioni({ onEsci }: { onEsci: () => void }) {
           {salvato ? "Salvato ✓" : "Salva"}
         </button>
       </div>
+      <VoceAudio />
       <Gemini />
       {leggiConfig() && (
         <div className="carta">

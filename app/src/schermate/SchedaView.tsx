@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDati } from "../stato";
 import { Attesa, BottoneLeggi, Foglio, Icone, Stelle, TestoRicco, Virgilio } from "../componenti";
 import { leggi } from "../voce";
+import { leggiScelteVoce } from "../voceScelta";
 import type { Approfondimento, ParolaChiave, Ricerca, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
 import { Domanda } from "./Domanda";
@@ -83,12 +84,15 @@ export default function SchedaView() {
       return;
     }
     // se il PC ha preparato l'audio con la voce buona, uso quello
-    if (audio[s.id]) {
+    const scelte = leggiScelteVoce();
+    const voceDisponibile = audio[s.id]?.[scelte.voce] ? scelte.voce : Object.keys(audio[s.id] ?? {})[0];
+    if (voceDisponibile) {
       setCaricoAudio(true);
-      const url = await caricaAudio(s.id);
+      const url = await caricaAudio(s.id, voceDisponibile);
       setCaricoAudio(false);
       if (url) {
         const a = new Audio(url);
+        a.playbackRate = scelte.velocita;
         a.onended = () => setAscolto(null);
         a.onerror = () => setAscolto(null);
         await a.play().catch(() => setAscolto(null));

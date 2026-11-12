@@ -32,16 +32,17 @@ export function disponibile() {
 export function audioMancanti(radice, esame, voce, velocita) {
   const p = percorsi(radice, esame.slug);
   const dirAudio = path.join(radice, "esami", esame.slug, "audio");
+  const nomeFile = (id) => `${id}.${voce}`;
   const lavori = [];
   for (const f of elenco(p.schede).filter((f) => f.endsWith(".json"))) {
     const s = leggiJson(path.join(p.schede, f));
     if (!s?.id || !(s.pillola || s.semplice)) continue;
-    const meta = leggiJson(path.join(dirAudio, `${s.id}.json`));
-    const mp3 = path.join(dirAudio, `${s.id}.mp3`);
+    const meta = leggiJson(path.join(dirAudio, `${nomeFile(s.id)}.json`));
+    const mp3 = path.join(dirAudio, `${nomeFile(s.id)}.mp3`);
     if (meta?.aggiornata === s.aggiornata && meta?.voce === voce && meta?.velocita === velocita && fs.existsSync(mp3)) continue;
     lavori.push({ id: s.id, aggiornata: s.aggiornata, testo: `${perLaVoce(s.titolo)}.
 [pausa]
-${perLaVoce(s.pillola || s.semplice)}`, out: mp3, meta: path.join(dirAudio, `${s.id}.json`) });
+${perLaVoce(s.pillola || s.semplice)}`, out: mp3, meta: path.join(dirAudio, `${nomeFile(s.id)}.json`) });
   }
   return lavori;
 }
