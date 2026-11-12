@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useDati, oggi } from "../stato";
-import { Attesa, Stelle, Virgilio } from "../componenti";
+import { Attesa, Foglio, Stelle, Virgilio } from "../componenti";
+import { Domanda } from "./Domanda";
 import { carteDaRipassare, livello, pianoDiOggi, NOMI_LIVELLO, type Livello } from "../piano";
 import { bentornato, fraseDelGiorno, rispostaUmore, saluto } from "../virgilio";
 import type { Umore } from "../tipi";
@@ -20,6 +22,7 @@ function giorniDaUltimoStudio(giorni: string[]) {
 
 export default function Oggi() {
   const { pronto, errore, esame, programma, schede, materiali, progressi, aggiornaProgressi } = useDati();
+  const [chiedi, setChiedi] = useState<null | { rid?: string; domanda?: string }>(null);
   const umore = progressi.checkin[oggi()];
   const nome = progressi.nome;
 
@@ -158,6 +161,10 @@ export default function Oggi() {
         </div>
       )}
 
+      {esame && (
+        <ChiediCarta onApri={setChiedi} />
+      )}
+
       {argomenti.length > 0 && (
         <>
           <h2 style={{ marginTop: 22 }}>Come stai andando</h2>
@@ -180,6 +187,42 @@ export default function Oggi() {
           </div>
         </>
       )}
+
+      {chiedi && (
+        <Foglio onChiudi={() => setChiedi(null)}>
+          <div className="etichetta">Chiedi a Virgilio</div>
+          <Domanda rid={chiedi.rid} domandaFatta={chiedi.domanda} />
+          <button className="btn btn-tenue btn-largo" style={{ marginTop: 8 }} onClick={() => setChiedi(null)}>
+            Chiudi
+          </button>
+        </Foglio>
+      )}
+    </div>
+  );
+}
+
+function ChiediCarta({ onApri }: { onApri: (c: { rid?: string; domanda?: string }) => void }) {
+  const { progressi } = useDati();
+  const recenti = progressi.richieste.filter((r) => r.tipo === "domanda" && !r.argomento).slice(-3).reverse();
+  return (
+    <div className="carta">
+      <div className="etichetta">Hai un dubbio?</div>
+      <button className="btn btn-largo" onClick={() => onApri({})}>
+        ❓ Chiedi a Virgilio
+      </button>
+      <p className="tenue piccolo" style={{ margin: "8px 0 0" }}>
+        Su un argomento, su una parola, o su cosa c'è nei tuoi materiali.
+      </p>
+      {recenti.map((r) => (
+        <button
+          key={r.id}
+          className="btn btn-bordo btn-largo btn-piccolo"
+          style={{ justifyContent: "flex-start", marginTop: 6 }}
+          onClick={() => onApri({ rid: r.id, domanda: r.testo })}
+        >
+          {(r.testo ?? "").slice(0, 60)}
+        </button>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArchivioGitHub, ArchivioLocale, fileInBase64, testoInBase64, type Archivio, type VoceAlbero } from "./archivio";
-import { leggiChiaveGemini, pennaConGemini, valutaConGemini } from "./gemini";
+import { domandaConGemini, leggiChiaveGemini, pennaConGemini, valutaConGemini } from "./gemini";
 import type {
   Esame,
   MaterialeMeta,
@@ -242,6 +242,8 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   // per la riserva Gemini servono le schede piu' recenti
   const schedeRef = useRef(dati.schede);
   schedeRef.current = dati.schede;
+  const programmaRef = useRef(dati.programma);
+  programmaRef.current = dati.programma;
   const geminiInCorso = useRef(new Set<string>());
 
   /** Il PC non risponde: il telefono chiede a Gemini e salva la risposta come farebbe il motore. */
@@ -250,21 +252,28 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
       const chiave = leggiChiaveGemini();
       const richiesta = (leggiLocale<Record<string, Richiesta>>(CHIAVE_INPUT) ?? {})[id];
       if (!archivio || !chiave || !richiesta || geminiInCorso.current.has(id)) return;
-      const input = richiesta.input as { argomento: string; testo?: string; domanda?: string | null; trascrizione?: string };
-      const scheda = schedeRef.current[input.argomento];
-      if (!scheda) return;
+      const input = richiesta.input as { argomento?: string; testo?: string; domanda?: string | null; trascrizione?: string; passaggio?: string };
+      const scheda = input.argomento ? schedeRef.current[input.argomento] : undefined;
+      if (!scheda && richiesta.tipo !== "domanda") return;
       geminiInCorso.current.add(id);
       const segna = (r: Risposta) => setDati((d) => ({ ...d, risposte: { ...d.risposte, [id]: r } }));
       segna({ id, stato: "in_corso", aggiornata: new Date().toISOString(), da: "gemini" });
       try {
         const output =
-          richiesta.tipo === "penna"
-            ? await pennaConGemini(chiave, scheda, input.testo ?? "")
+          richiesta.tipo === "domanda"
+            ? await domandaConGemini(chiave, {
+                domanda: input.domanda ?? "",
+                passaggio: input.passaggio,
+                scheda,
+                argomenti: (programmaRef.current?.argomenti ?? []).map((a) => a.titolo),
+              })
+            : richiesta.tipo === "penna"
+            ? await pennaConGemini(chiave, scheda!, input.testo ?? "")
             : await valutaConGemini(
                 chiave,
-                scheda,
+                scheda!,
                 { domanda: input.domanda, trascrizione: input.trascrizione ?? "" },
-                (progressiRef.current.argomenti[input.argomento]?.ripetizioni ?? []).map((r) => r.voto),
+                (progressiRef.current.argomenti[input.argomento ?? ""]?.ripetizioni ?? []).map((r) => r.voto),
               );
         const risposta: Risposta = { id, stato: "fatta", aggiornata: new Date().toISOString(), output, da: "gemini" };
         segna(risposta);

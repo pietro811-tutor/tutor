@@ -88,7 +88,7 @@ export interface Scheda {
   pillola: string; // testo da ascoltare
 }
 
-export type TipoRichiesta = "valuta_ripetizione" | "penna";
+export type TipoRichiesta = "valuta_ripetizione" | "penna" | "domanda";
 
 export interface Richiesta {
   // T  richieste/<id>.json
@@ -123,6 +123,13 @@ export interface Approfondimento {
   approfondimento: string;
   all_esame?: string;
   nei_tuoi_materiali: boolean;
+  fonti?: { titolo: string; url?: string }[];
+}
+
+export interface RispostaDomanda {
+  risposta: string; // markdown semplice
+  nei_tuoi_materiali: boolean;
+  materiali?: string[];
   fonti?: { titolo: string; url?: string }[];
 }
 

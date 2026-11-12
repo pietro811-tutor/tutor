@@ -16,6 +16,7 @@ import {
   leggiJson,
   leggiMateriale,
   penna,
+  domanda,
   percorsi,
   scriviJson,
   valutaRipetizione,
@@ -147,7 +148,7 @@ function prossimoLavoro() {
 
 // ---------- i due giri ----------
 
-const GESTORI = { valuta_ripetizione: valutaRipetizione, penna };
+const GESTORI = { valuta_ripetizione: valutaRipetizione, penna, domanda };
 
 async function rispondi(richiesta) {
   const file = path.join(radice, "risposte", `${richiesta.id}.json`);

@@ -450,3 +450,52 @@ Rispondi SOLO con JSON: {"breve": "...", "approfondimento": "...", "all_esame": 
     (o) => (o.breve && o.approfondimento ? null : "manca la spiegazione"),
   );
 }
+
+/** Una domanda libera: su un passaggio della scheda (dalla penna) o su qualsiasi cosa (da "Chiedi a Virgilio"). */
+export async function domanda(config, radice, richiesta) {
+  const p = percorsi(radice, richiesta.esame);
+  const { argomento, titolo, passaggio, domanda: testo } = richiesta.input;
+  const fileScheda = argomento ? path.join(p.schede, `${argomento}.json`) : null;
+  const contesto = [
+    passaggio ? `Mentre studiava "${titolo}" ha selezionato questo passaggio: «${passaggio}»` : "",
+    fileScheda && fs.existsSync(fileScheda) ? `La scheda dell'argomento è ${fileScheda} : leggila per il contesto.` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return chiediJson(
+    config,
+    {
+      cwd: radice,
+      modello: "veloce",
+      strumenti: ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
+      maxTurni: 25,
+      prompt: `${VIRGILIO}
+
+Lo studente ti fa una domanda.
+${contesto}
+La domanda è:
+"""
+${testo}
+"""
+
+Dove trovi le sue cose (esame ${richiesta.esame}):
+- ${p.programma} : il programma, con gli argomenti e da quali materiali vengono ("fonti");
+- ${p.statoMateriali} : l'elenco dei materiali caricati, con i titoli;
+- ${p.testi} : il testo di ogni materiale (file .txt; cercaci dentro con Grep, poi leggi con offset e limit);
+- ${p.schede} : le schede già scritte.
+
+Come rispondere:
+- Se la domanda riguarda i suoi materiali (es. "ho caricato qualcosa su...?", "cosa ha detto il professore su...?"), cerca PRIMA lì e rispondi con precisione:
+  quali materiali, dove (pagina o minuto), e in quale argomento del programma è finito.
+- Se è un dubbio di contenuto, rispondi prima con quello che c'è nei suoi materiali; se non basta o è poco chiaro, cerca sul web
+  (fonti mediche affidabili) e dillo chiaramente.
+- Rispondi in modo semplice e diretto, come un tutor che parla: prima la risposta in una o due frasi, poi, se serve, la spiegazione.
+- "risposta": markdown semplice (- per gli elenchi, **grassetto** per i termini chiave), al massimo 15 righe;
+- "nei_tuoi_materiali": true se la risposta viene dai suoi materiali, false se hai dovuto aggiungere cose da fuori;
+- "materiali": i titoli dei suoi materiali che hai usato (anche vuoto);
+- "fonti": le fonti esterne usate (titolo e url), vuoto se non ne hai usate.
+Rispondi SOLO con JSON: {"risposta": "...", "nei_tuoi_materiali": true, "materiali": ["..."], "fonti": [{"titolo": "...", "url": "..."}]}`,
+    },
+    (o) => (typeof o.risposta === "string" && o.risposta.trim() ? null : "manca la risposta"),
+  );
+}

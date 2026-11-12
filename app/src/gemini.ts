@@ -1,7 +1,7 @@
 // Riserva gratuita quando il PC e' spento: il telefono chiede direttamente a Gemini
 // (piano gratuito di Google AI Studio). Nel piano gratuito Google puo' usare i dati inviati.
 
-import type { Approfondimento, Scheda, Valutazione } from "./tipi";
+import type { RispostaDomanda, Approfondimento, Scheda, Valutazione } from "./tipi";
 
 const CHIAVE = "tutor:gemini";
 const CHIAVE_MODELLI = "tutor:gemini-modelli";
@@ -157,4 +157,30 @@ Rispondi SOLO con JSON: {"breve": "...", "approfondimento": "...", "all_esame": 
   const a = estraiJson<Approfondimento>(testo);
   if (!a.breve || !a.approfondimento) throw new ErroreGemini("Spiegazione incompleta, riprova.");
   return a;
+}
+
+export async function domandaConGemini(
+  chiave: string,
+  { domanda, passaggio, scheda, argomenti }: { domanda: string; passaggio?: string; scheda?: Scheda; argomenti: string[] },
+): Promise<RispostaDomanda> {
+  const prompt = `${VIRGILIO}
+
+Lo studente ti fa una domanda${scheda ? ` mentre studia "${scheda.titolo}"` : ""}.
+${passaggio ? `Ha selezionato questo passaggio: «${passaggio}»` : ""}
+${scheda ? `La sua scheda: ${schedaInBreve(scheda)}` : ""}
+Gli argomenti del suo programma (tratti dai suoi materiali): ${argomenti.join("; ") || "(nessuno)"}
+La domanda è: """${domanda}"""
+
+Non puoi leggere i suoi materiali completi: se chiede cosa ha caricato, rispondi in base agli argomenti del programma e dillo.
+Per un dubbio di contenuto puoi cercare fonti mediche affidabili. Rispondi in modo semplice e diretto, al massimo 15 righe.
+Rispondi SOLO con JSON: {"risposta": "markdown semplice", "nei_tuoi_materiali": true, "materiali": [], "fonti": [{"titolo": "...", "url": "..."}]}`;
+  let testo: string;
+  try {
+    testo = await chiedi(chiave, prompt, { cerca: true });
+  } catch {
+    testo = await chiedi(chiave, prompt);
+  }
+  const r = estraiJson<RispostaDomanda>(testo);
+  if (!r.risposta) throw new ErroreGemini("Risposta incompleta, riprova.");
+  return r;
 }

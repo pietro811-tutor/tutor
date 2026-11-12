@@ -5,10 +5,14 @@ import { Attesa, Foglio, Icone, Stelle, TestoRicco, Virgilio } from "../componen
 import { leggi } from "../voce";
 import type { Approfondimento, ParolaChiave, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
+import { Domanda } from "./Domanda";
 
 const TAPPE = ["Semplice", "Schema", "Dettaglio", "Ripeti tu", "Domande"];
 
-type Penna = { tipo: "parola"; parola: ParolaChiave } | { tipo: "selezione"; testo: string; rid?: string };
+type Penna =
+  | { tipo: "parola"; parola: ParolaChiave }
+  | { tipo: "selezione"; testo: string; rid?: string }
+  | { tipo: "domanda"; testo?: string; rid?: string; domanda?: string };
 
 export default function SchedaView() {
   const { id = "" } = useParams();
@@ -149,7 +153,14 @@ export default function SchedaView() {
             </div>
             {scheda.verifiche.length > 0 && <Verifiche scheda={scheda} />}
             {(scheda.integrazione?.length ?? 0) > 0 && <Integrazione scheda={scheda} />}
-            <Approfondimenti id={id} onApri={(rid, testo) => setPenna({ tipo: "selezione", testo, rid })} />
+            <Approfondimenti
+              id={id}
+              onApri={(rid, testo) => setPenna({ tipo: "selezione", testo, rid })}
+              onDomanda={(rid, domanda) => setPenna({ tipo: "domanda", rid, domanda })}
+            />
+            <button className="btn btn-bordo btn-largo btn-piccolo" onClick={() => setPenna({ tipo: "domanda" })}>
+              ❓ Ho un dubbio su questo argomento
+            </button>
             {scheda.fonti.length > 0 && (
               <p className="tenue piccolo">
                 Fonti: {scheda.fonti.map((f) => [f.materiale, f.dove].filter(Boolean).join(", ")).join(" · ")}
@@ -169,7 +180,7 @@ export default function SchedaView() {
 
       {selezione && !penna && (
         <button className="btn btn-terra penna-fluttuante" onMouseDown={(e) => e.preventDefault()} onClick={() => setPenna({ tipo: "selezione", testo: selezione })}>
-          {Icone.penna} Approfondisci
+          {Icone.penna} Penna
         </button>
       )}
 
@@ -216,16 +227,18 @@ function Integrazione({ scheda }: { scheda: Scheda }) {
   );
 }
 
-function Approfondimenti({ id, onApri }: { id: string; onApri: (rid: string, testo: string) => void }) {
+function Approfondimenti({ id, onApri, onDomanda }: { id: string; onApri: (rid: string, testo: string) => void; onDomanda: (rid: string, testo: string) => void }) {
   const { progressi } = useDati();
-  const lista = progressi.richieste.filter((r) => r.tipo === "penna" && r.argomento === id);
+  const lista = progressi.richieste.filter((r) => (r.tipo === "penna" || r.tipo === "domanda") && r.argomento === id);
   if (!lista.length) return null;
   return (
     <div className="carta">
-      <div className="etichetta">I tuoi approfondimenti</div>
+      <div className="etichetta">I tuoi approfondimenti e le tue domande</div>
       {lista.map((r) => (
-        <button key={r.id} className="btn btn-bordo btn-largo btn-piccolo" style={{ justifyContent: "flex-start", marginTop: 6 }} onClick={() => onApri(r.id, r.testo ?? "")}>
-          {Icone.penna} «{(r.testo ?? "").slice(0, 60)}»
+        <button key={r.id} className="btn btn-bordo btn-largo btn-piccolo" style={{ justifyContent: "flex-start", marginTop: 6 }} onClick={() => (r.tipo === "domanda" ? onDomanda(r.id, r.testo ?? "") : onApri(r.id, r.testo ?? ""))}>
+          {r.tipo === "domanda" ? "❓" : Icone.penna} {r.tipo === "domanda" ? "" : "«"}
+          {(r.testo ?? "").slice(0, 60)}
+          {r.tipo === "domanda" ? "" : "»"}
         </button>
       ))}
     </div>
@@ -236,6 +249,7 @@ function FoglioPenna({ penna, scheda, onChiudi }: { penna: Penna; scheda: Scheda
   const { inviaRichiesta, aspettaRisposta, risposte } = useDati();
   const [rid, setRid] = useState(penna.tipo === "selezione" ? penna.rid : undefined);
   const [errore, setErrore] = useState("");
+  const [dubbio, setDubbio] = useState(false);
 
   useEffect(() => (rid ? aspettaRisposta(rid) : undefined), [rid, aspettaRisposta]);
 
@@ -261,6 +275,29 @@ function FoglioPenna({ penna, scheda, onChiudi }: { penna: Penna; scheda: Scheda
       </Foglio>
     );
   }
+
+  if (penna.tipo === "domanda" || dubbio)
+    return (
+      <Foglio onChiudi={onChiudi}>
+        <div className="etichetta">Un dubbio</div>
+        {penna.testo && (
+          <p className="tenue" style={{ fontStyle: "italic" }}>
+            «{penna.testo}»
+          </p>
+        )}
+        {!penna.testo && <h3 style={{ marginTop: 4 }}>{scheda.titolo}</h3>}
+        <Domanda
+          argomento={scheda.id}
+          titolo={scheda.titolo}
+          passaggio={penna.testo}
+          rid={penna.tipo === "domanda" ? penna.rid : undefined}
+          domandaFatta={penna.tipo === "domanda" ? penna.domanda : undefined}
+        />
+        <button className="btn btn-tenue btn-largo" style={{ marginTop: 8 }} onClick={onChiudi}>
+          Chiudi
+        </button>
+      </Foglio>
+    );
 
   const risposta = rid ? risposte[rid] : undefined;
   const app = risposta?.stato === "fatta" ? (risposta.output as Approfondimento) : undefined;
@@ -288,11 +325,20 @@ function FoglioPenna({ penna, scheda, onChiudi }: { penna: Penna; scheda: Scheda
       </p>
       {!rid && (
         <>
-          <p>Faccio una ricerca su questo passaggio e te lo spiego in modo semplice: in breve, approfondito e come potrebbe chiedertelo il professore.</p>
+          <p>Cosa vuoi fare con questo passaggio?</p>
           {errore && <div className="avviso">{errore}</div>}
           <button className="btn btn-largo btn-terra" onClick={chiedi}>
             {Icone.penna} Approfondisci
           </button>
+          <p className="tenue piccolo" style={{ margin: "4px 0 12px" }}>
+            Faccio una ricerca e te lo spiego in breve, approfondito e come potrebbe chiedertelo il professore.
+          </p>
+          <button className="btn btn-largo btn-bordo" onClick={() => setDubbio(true)}>
+            ❓ Ho un dubbio
+          </button>
+          <p className="tenue piccolo" style={{ margin: "4px 0 12px" }}>
+            Mi fai una domanda precisa su questo pezzo, a voce o scritta.
+          </p>
         </>
       )}
       {rid && !app && risposta?.stato !== "errore" && (
