@@ -1,8 +1,9 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
 import "./stile.css";
-import { leggiConfig, ProviderDati, useDati, type Config } from "./stato";
+import { leggiConfig, salvaConfig, ProviderDati, useDati, type Config } from "./stato";
+import { leggiCopia } from "./copiaChiave";
 import { Icone } from "./componenti";
 import { carteDaRipassare } from "./piano";
 import Benvenuto from "./schermate/Benvenuto";
@@ -47,6 +48,19 @@ try {
 
 function App() {
   const [config, setConfig] = useState<Config | null>(leggiConfig());
+  const [controllato, setControllato] = useState(!!leggiConfig() || import.meta.env.DEV);
+  // se la chiave è sparita dal telefono, la ripristino dalla seconda copia
+  useEffect(() => {
+    if (controllato) return;
+    void leggiCopia().then((c) => {
+      if (c) {
+        salvaConfig(c);
+        setConfig(c);
+      }
+      setControllato(true);
+    });
+  }, [controllato]);
+  if (!controllato) return null;
   // sul PC, in sviluppo, si puo' usare la cartella locale senza chiave
   if (!config && !import.meta.env.DEV) return <Benvenuto onPronto={setConfig} />;
   return (

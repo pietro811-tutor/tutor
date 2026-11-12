@@ -20,6 +20,8 @@ export interface Config {
   repo: string;
 }
 
+import { salvaCopia } from "./copiaChiave";
+
 const CHIAVE_CONFIG = "tutor:config";
 const CHIAVE_CACHE = "tutor:cache";
 const CHIAVE_PROGRESSI = "tutor:progressi";
@@ -46,8 +48,11 @@ function scriviLocale(chiave: string, valore: unknown) {
 }
 
 export const leggiConfig = () => leggiLocale<Config>(CHIAVE_CONFIG);
-export const salvaConfig = (c: Config | null) =>
-  c ? scriviLocale(CHIAVE_CONFIG, c) : localStorage.removeItem(CHIAVE_CONFIG);
+export const salvaConfig = (c: Config | null) => {
+  void salvaCopia(c);
+  if (c) scriviLocale(CHIAVE_CONFIG, c);
+  else localStorage.removeItem(CHIAVE_CONFIG);
+};
 
 function creaArchivio(config: Config | null): Archivio | null {
   if (config) return new ArchivioGitHub(config.token, config.repo);
