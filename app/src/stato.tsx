@@ -95,9 +95,12 @@ interface Dati {
   materiali: MaterialeVisto[];
   risposte: Record<string, Risposta>;
   progressi: Progressi;
+  audio: Record<string, string>; // schede che hanno l'audio pronto (id -> versione)
 }
 
 interface Azioni {
+  /** L'audio della scheda (scaricato una volta, poi resta sul telefono). Ritorna un indirizzo da dare a <audio>. */
+  caricaAudio(id: string): Promise<string | null>;
   sincronizza(): Promise<void>;
   aggiornaProgressi(fn: (p: Progressi) => void): void;
   inviaRichiesta(tipo: TipoRichiesta, input: Record<string, unknown>, extra?: { argomento?: string; testo?: string }): Promise<string>;
@@ -128,6 +131,7 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     schede: {},
     materiali: [],
     risposte: {},
+    audio: {},
     progressi: leggiLocale<Progressi>(CHIAVE_PROGRESSI) ?? progressiVuoti(),
   }));
   const progressiRef = useRef(dati.progressi);
@@ -199,6 +203,10 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         if (s) schede[s.id] = s;
       }
 
+      const audio: Record<string, string> = {};
+      for (const v of albero.current)
+        if (v.path.startsWith(`${base}/audio/`) && v.path.endsWith(".mp3")) audio[v.path.split("/").pop()!.replace(/.mp3$/, "")] = v.sha;
+
       const statoMateriali = (esame && (await leggiJson<Record<string, StatoMateriale>>(`${base}/stato-materiali.json`))) || {};
       const materiali: MaterialeVisto[] = [];
       for (const p of percorsi.filter((p) => p.startsWith(`${base}/materiali/`) && p.endsWith(".json"))) {
@@ -242,6 +250,7 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         motore: motore ?? undefined,
         programma: programma ?? undefined,
         schede,
+        audio,
         materiali,
         risposte,
         progressi: progressiRef.current,
@@ -454,9 +463,35 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     };
   }, [dati.programma, dati.progressi.stelle]);
 
+  // l'audio si scarica una volta sola e resta nella memoria del telefono (anche senza rete)
+  const caricaAudio = useCallback<Azioni["caricaAudio"]>(
+    async (id) => {
+      const sha = dati.audio[id];
+      if (!archivio || !dati.esame || !sha) return null;
+      const chiave = `https://audio.locale/${dati.esame.slug}/${id}/${sha}`;
+      try {
+        const cache = await caches.open("tutor-audio");
+        let r = await cache.match(chiave);
+        if (!r) {
+          const blob = await archivio.leggiBinario(`esami/${dati.esame.slug}/audio/${id}.mp3`);
+          if (!blob) return null;
+          for (const k of await cache.keys()) if (k.url.startsWith(`https://audio.locale/${dati.esame.slug}/${id}/`)) await cache.delete(k);
+          await cache.put(chiave, new Response(blob, { headers: { "Content-Type": "audio/mpeg" } }));
+          r = await cache.match(chiave);
+        }
+        return r ? URL.createObjectURL(await r.blob()) : null;
+      } catch {
+        // niente cache: scarico e basta
+        const blob = await archivio.leggiBinario(`esami/${dati.esame.slug}/audio/${id}.mp3`).catch(() => null);
+        return blob ? URL.createObjectURL(blob) : null;
+      }
+    },
+    [archivio, dati.audio, dati.esame],
+  );
+
   const valore = useMemo(
-    () => ({ ...dati, programma: programmaTuo, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
-    [dati, programmaTuo, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
+    () => ({ ...dati, programma: programmaTuo, caricaAudio, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
+    [dati, programmaTuo, caricaAudio, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
   );
   return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
 }

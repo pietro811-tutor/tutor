@@ -17,13 +17,14 @@ type Penna =
 export default function SchedaView() {
   const { id = "" } = useParams();
   const naviga = useNavigate();
-  const { schede, programma, progressi, aggiornaProgressi } = useDati();
+  const { schede, programma, progressi, aggiornaProgressi, audio, caricaAudio } = useDati();
   const scheda = schede[id];
   const argomento = programma?.argomenti.find((a) => a.id === id);
   const [tappa, setTappa] = useState(1);
   const [penna, setPenna] = useState<Penna | null>(null);
   const [selezione, setSelezione] = useState("");
   const [ascolto, setAscolto] = useState<null | (() => void)>(null);
+  const [caricoAudio, setCaricoAudio] = useState(false);
   const contenuto = useRef<HTMLDivElement>(null);
   const fatte = progressi.argomenti[id]?.tappe ?? [];
 
@@ -75,11 +76,28 @@ export default function SchedaView() {
     } else naviga("/");
   }
 
-  function ascoltaPillola(s: Scheda) {
+  async function ascoltaPillola(s: Scheda) {
     if (ascolto) {
       ascolto();
       setAscolto(null);
       return;
+    }
+    // se il PC ha preparato l'audio con la voce buona, uso quello
+    if (audio[s.id]) {
+      setCaricoAudio(true);
+      const url = await caricaAudio(s.id);
+      setCaricoAudio(false);
+      if (url) {
+        const a = new Audio(url);
+        a.onended = () => setAscolto(null);
+        a.onerror = () => setAscolto(null);
+        await a.play().catch(() => setAscolto(null));
+        setAscolto(() => () => {
+          a.pause();
+          URL.revokeObjectURL(url);
+        });
+        return;
+      }
     }
     const ferma = leggi([s.titolo, { pausa: 600 }, s.pillola || s.semplice], () => setAscolto(null));
     setAscolto(() => ferma);
@@ -95,7 +113,7 @@ export default function SchedaView() {
           {Icone.indietro} Programma
         </Link>
         <button className="btn btn-tenue btn-piccolo" onClick={() => ascoltaPillola(scheda)}>
-          {Icone.cuffie} {ascolto ? "Ferma" : "Ascolta"}
+          {Icone.cuffie} {caricoAudio ? "Un attimo…" : ascolto ? "Ferma" : "Ascolta"}
         </button>
       </div>
       <h1>{scheda.titolo}</h1>

@@ -9,5 +9,6 @@
   "claude_config": "./accesso-claude",
   "whisper_python": "python",
   "trascrivi": "../trascrizione/trascrivi.py",
-  "intervallo_secondi": 5
+  "intervallo_secondi": 5,
+  "voce": { "nome": "if_sara", "velocita": 0.93 }
 }

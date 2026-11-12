@@ -10,6 +10,7 @@ export interface VoceAlbero {
 export interface Archivio {
   albero(): Promise<VoceAlbero[]>;
   leggiTesto(path: string): Promise<string | null>;
+  leggiBinario(path: string): Promise<Blob | null>;
   scrivi(path: string, base64: string, messaggio: string): Promise<void>;
 }
 
@@ -71,6 +72,15 @@ export class ArchivioGitHub implements Archivio {
     return await r.text();
   }
 
+  async leggiBinario(path: string) {
+    const r = await this.chiama(`/contents/${percorsoUrl(path)}?ref=${this.ramo}`, {
+      headers: { Accept: "application/vnd.github.raw+json" },
+    });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new ErroreArchivio(`Non riesco a leggere ${path} (${r.status})`, r.status);
+    return await r.blob();
+  }
+
   private async shaAttuale(path: string) {
     const r = await this.chiama(`/contents/${percorsoUrl(path)}?ref=${this.ramo}`);
     if (r.status === 404) return undefined;
@@ -107,6 +117,10 @@ export class ArchivioLocale implements Archivio {
     const r = await fetch(`/dev-archivio?path=${encodeURIComponent(path)}`, { cache: "no-store" });
     if (r.status === 404) return null;
     return await r.text();
+  }
+  async leggiBinario(path: string) {
+    const r = await fetch(`/dev-archivio?path=${encodeURIComponent(path)}`, { cache: "no-store" });
+    return r.ok ? await r.blob() : null;
   }
   async scrivi(path: string, base64: string) {
     const r = await fetch(`/dev-archivio?path=${encodeURIComponent(path)}`, { method: "PUT", body: base64 });

@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { creaArchivio } from "./archivio.js";
 import { log } from "./log.js";
+import { audioMancanti, disponibile as vociPronte, generaAudio } from "./audio.js";
 import {
   costruisciProgramma,
   costruisciScheda,
@@ -243,6 +244,29 @@ async function giroDiFondo() {
   }
 }
 
+/** Gli audio delle schede (voce gratuita sul PC, niente Claude): non si ferma con la pausa, e' solo lavoro del PC. */
+async function giroAudio() {
+  const voce = config.voce?.nome ?? "if_sara";
+  const velocita = config.voce?.velocita ?? 0.93;
+  if (!vociPronte()) return log("Voci non installate (cartella voci): salto gli audio.");
+  for (;;) {
+    try {
+      const lavori = esami().flatMap((e) => audioMancanti(radice, e, voce));
+      if (lavori.length) {
+        log(`Audio da fare: ${lavori.length}`);
+        const fatti = await generaAudio(lavori.slice(0, 6), voce, velocita);
+        log(`Audio pronti: ${fatti}`);
+        await archivio.pubblica("Audio delle schede");
+        continue;
+      }
+    } catch (e) {
+      log(`Errore negli audio: ${e.message}`);
+      await dormi(10 * 60000);
+    }
+    await dormi(60000);
+  }
+}
+
 log(`Virgilio è sveglio (${config.modalita === "locale" ? "prova sul PC" : "collegato a GitHub"}). Dati in ${radice}`);
 if (!fs.existsSync(radice)) {
   log("La cartella dati non esiste: controlla config.json");
@@ -251,3 +275,4 @@ if (!fs.existsSync(radice)) {
 fs.mkdirSync(path.join(cartellaAudioPc, "anatomia-patologica"), { recursive: true });
 giroRichieste();
 giroDiFondo();
+giroAudio();
