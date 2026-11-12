@@ -38,6 +38,13 @@ function Navigazione() {
   );
 }
 
+// chiede al browser di non cancellare i dati dell'app (la chiave di accesso resta sul telefono)
+try {
+  void navigator.storage?.persist?.();
+} catch {
+  /* pazienza */
+}
+
 function App() {
   const [config, setConfig] = useState<Config | null>(leggiConfig());
   // sul PC, in sviluppo, si puo' usare la cartella locale senza chiave
