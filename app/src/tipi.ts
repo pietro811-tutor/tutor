@@ -51,7 +51,12 @@ export interface Programma {
   argomenti: Argomento[];
 }
 
-export interface Verifica {
+export interface Ricerca {
+  ricerca?: string; // cosa ha trovato Virgilio cercando sul web
+  fonte_web?: { titolo: string; url?: string };
+}
+
+export interface Verifica extends Ricerca {
   tipo: "ok" | "dubbio" | "integrazione";
   testo: string;
   fonte?: string;
@@ -84,7 +89,7 @@ export interface Scheda {
   domande: Domanda[];
   collegamenti: string[];
   fonti: { materiale: string; dove?: string }[];
-  integrazione?: { tipo: "doppione" | "integrato" | "contrasto"; testo: string; materiali: string[] }[];
+  integrazione?: ({ tipo: "doppione" | "integrato" | "contrasto"; testo: string; materiali: string[] } & Ricerca)[];
   pillola: string; // testo da ascoltare
 }
 

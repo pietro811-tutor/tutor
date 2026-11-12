@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDati } from "../stato";
 import { Attesa, BottoneLeggi, Foglio, Icone, Stelle, TestoRicco, Virgilio } from "../componenti";
 import { leggi } from "../voce";
-import type { Approfondimento, ParolaChiave, Scheda } from "../tipi";
+import type { Approfondimento, ParolaChiave, Ricerca, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
 import { Domanda } from "./Domanda";
 
@@ -210,9 +210,31 @@ function Verifiche({ scheda }: { scheda: Scheda }) {
           <div>
             {v.testo}
             {v.fonte && <div className="tenue piccolo">{v.fonte}</div>}
+            <EsitoRicerca r={v} />
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function EsitoRicerca({ r }: { r: Ricerca }) {
+  if (!r.ricerca) return null;
+  return (
+    <div className="esito-ricerca">
+      🔎 <strong>Ho controllato:</strong> {r.ricerca}
+      {r.fonte_web && (
+        <div className="tenue piccolo">
+          Fonte:{" "}
+          {r.fonte_web.url ? (
+            <a href={r.fonte_web.url} target="_blank" rel="noreferrer">
+              {r.fonte_web.titolo}
+            </a>
+          ) : (
+            r.fonte_web.titolo
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -229,6 +251,7 @@ function Integrazione({ scheda }: { scheda: Scheda }) {
           <div>
             <b>{nomi[x.tipo]}.</b> {x.testo}
             {x.materiali.length > 0 && <div className="tenue piccolo">{x.materiali.join(" · ")}</div>}
+            <EsitoRicerca r={x} />
           </div>
         </div>
       ))}

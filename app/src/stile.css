@@ -611,3 +611,10 @@ label {
   padding: 0;
   cursor: pointer;
 }
+
+.esito-ricerca {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}

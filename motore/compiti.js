@@ -271,6 +271,16 @@ Rispondi SOLO con JSON: {"argomenti": [{"id": "...", "titolo": "...", "ordine": 
 
 // ---------- 3. la scheda di un argomento ----------
 
+/** Tiene "ricerca" e "fonte_web" solo se ci sono davvero. Con soloRicerca restituisce solo quei due campi. */
+function conRicerca(v, soloRicerca = false) {
+  const extra = {};
+  if (typeof v.ricerca === "string" && v.ricerca.trim()) extra.ricerca = v.ricerca.trim();
+  if (v.fonte_web && typeof v.fonte_web.titolo === "string") extra.fonte_web = { titolo: v.fonte_web.titolo, url: typeof v.fonte_web.url === "string" ? v.fonte_web.url : undefined };
+  if (soloRicerca) return extra;
+  const { ricerca, fonte_web, ...resto } = v;
+  return { ...resto, ...extra };
+}
+
 export async function costruisciScheda(config, radice, esame, argomento, programma) {
   const p = percorsi(radice, esame.slug);
   const fileScheda = path.join(p.schede, `${argomento.id}.json`);
@@ -283,8 +293,9 @@ export async function costruisciScheda(config, radice, esame, argomento, program
     config,
     {
       cwd: radice,
-      modello: config.modello_schede ?? "veloce", // Sonnet: più leggero sulla quota; Opus resta per il programma
-      maxTurni: 60,
+      modello: config.modello_schede ?? "veloce",
+      strumenti: ["Read", "Glob", "Grep", "WebSearch", "WebFetch"], // il web serve solo a controllare dubbi e contrasti
+      maxTurni: 70,
       prompt: `${VIRGILIO}
 
 Scriviamo la scheda di studio dell'argomento "${argomento.titolo}" per l'esame ${esame.tipo} di ${esame.nome}.
@@ -305,6 +316,12 @@ PDF rifatti, foto). Prima di scrivere:
 - se due materiali si CONTRADDICONO, non scegliere in silenzio: tieni la versione del professore e segnala il contrasto;
 - il "dettaglio" deve essere UN testo unico, ordinato e senza ripetizioni, che contiene tutto quello che sta nei materiali: nessun concetto in meno;
 - compila "integrazione" come resoconto onesto di ciò che hai fatto: per ogni gruppo di passaggi, di che tipo era e da quali materiali veniva.
+
+CONTROLLO DEI DUBBI: per ogni "dubbio" (nelle verifiche) e per ogni "contrasto" (nell'integrazione) fai una ricerca sul web con WebSearch
+(fonti mediche affidabili: Robbins e altri libri di testo, classificazioni WHO, società scientifiche, articoli di revisione; al massimo 4 ricerche per scheda).
+Poi scrivi in "ricerca" cosa hai trovato, in una o due frasi chiare: chi ha ragione e perché (es. "Il professore ha ragione: il carcinoma adenoideo cistico
+è di consistenza dura; 'molliccia' nella sbobina è un errore"), e in "fonte_web" la fonte (titolo e url).
+Nel "dettaglio" usa la versione giusta; se il professore ha detto diversamente, ricordalo con una nota breve, perché all'orale conta anche lui.
 
 La scheda segue le 5 tappe del metodo:
 1. "semplice": 3-5 righe per capire SUBITO il concetto, senza paroloni. "analogia": un paragone di vita quotidiana (facoltativo).
@@ -335,10 +352,10 @@ ${altri || "(nessuno)"}
 Rispondi SOLO con JSON:
 {"titolo": "...", "semplice": "...", "analogia": "...", "schema": [{"voce": "...", "testo": "..."}], "dettaglio": "...",
  "parole_chiave": [{"termine": "...", "spiegazione": "...", "all_esame": "..."}],
- "verifiche": [{"tipo": "ok|dubbio|integrazione", "testo": "...", "fonte": "..."}],
+ "verifiche": [{"tipo": "ok|dubbio|integrazione", "testo": "...", "fonte": "...", "ricerca": "solo per i dubbi", "fonte_web": {"titolo": "...", "url": "..."}}],
  "domande": [{"domanda": "...", "risposta": "...", "tipo": "veloce|esame"}],
  "collegamenti": ["..."], "fonti": [{"materiale": "...", "dove": "..."}],
- "integrazione": [{"tipo": "doppione|integrato|contrasto", "testo": "...", "materiali": ["..."]}], "pillola": "..."}`,
+ "integrazione": [{"tipo": "doppione|integrato|contrasto", "testo": "...", "materiali": ["..."], "ricerca": "solo per i contrasti", "fonte_web": {"titolo": "...", "url": "..."}}], "pillola": "..."}`,
     },
     (o) =>
       typeof o.semplice === "string" && Array.isArray(o.schema) && typeof o.dettaglio === "string" && Array.isArray(o.domande) && o.domande.length
@@ -367,7 +384,7 @@ Rispondi SOLO con JSON:
     schema: s.schema.map((v) => ({ voce: String(v.voce), testo: String(v.testo) })),
     dettaglio: s.dettaglio,
     parole_chiave: (s.parole_chiave ?? []).filter((k) => k.termine && k.spiegazione),
-    verifiche: (s.verifiche ?? []).filter((v) => ["ok", "dubbio", "integrazione"].includes(v.tipo)),
+    verifiche: (s.verifiche ?? []).filter((v) => ["ok", "dubbio", "integrazione"].includes(v.tipo)).map((v) => conRicerca(v)),
     domande,
     collegamenti: (s.collegamenti ?? []).filter((c) => programma.argomenti.some((a) => a.id === c)),
     fonti: (s.fonti ?? []).map((f) => ({ materiale: titoli[f.materiale] ?? String(f.materiale ?? ""), dove: f.dove })),
@@ -376,7 +393,11 @@ Rispondi SOLO con JSON:
       .map((x) => ({
         tipo: x.tipo,
         testo: String(x.testo),
-        materiali: (Array.isArray(x.materiali) ? x.materiali : []).map((m) => titoli[m] ?? String(m)),
+        materiali: (Array.isArray(x.materiali) ? x.materiali : []).map((m) => {
+          const id = String(m).replace(/^.*[\\/]/, "").replace(/\.(txt|json)$/, "");
+          return titoli[id] ?? id;
+        }),
+        ...conRicerca(x, true),
       })),
     pillola: s.pillola ?? "",
   });
