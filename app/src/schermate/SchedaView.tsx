@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDati } from "../stato";
 import { Attesa, BottoneLeggi, Foglio, Icone, Stelle, TestoRicco, Virgilio } from "../componenti";
 import { leggi } from "../voce";
-import { leggiScelteVoce } from "../voceScelta";
+import { avviaAudio, leggiScelteVoce } from "../voceScelta";
 import type { Approfondimento, ParolaChiave, Ricerca, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
 import { Domanda } from "./Domanda";
@@ -91,15 +91,8 @@ export default function SchedaView() {
       const url = await caricaAudio(s.id, voceDisponibile);
       setCaricoAudio(false);
       if (url) {
-        const a = new Audio(url);
-        a.playbackRate = scelte.velocita;
-        a.onended = () => setAscolto(null);
-        a.onerror = () => setAscolto(null);
-        await a.play().catch(() => setAscolto(null));
-        setAscolto(() => () => {
-          a.pause();
-          URL.revokeObjectURL(url);
-        });
+        const ferma = await avviaAudio(url, scelte, () => setAscolto(null));
+        setAscolto(() => ferma);
         return;
       }
     }

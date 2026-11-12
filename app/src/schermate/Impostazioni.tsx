@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useDati, salvaConfig, leggiConfig } from "../stato";
-import { VOCI, leggiScelteVoce, salvaScelteVoce, type ScelteVoce } from "../voceScelta";
+import { VOCI, avviaAudio, leggiScelteVoce, salvaScelteVoce, type ScelteVoce } from "../voceScelta";
 import { Attesa, Icone } from "../componenti";
 import { leggiChiaveGemini, modelliGemini, salvaChiaveGemini } from "../gemini";
 
@@ -82,20 +82,9 @@ function VoceAudio() {
     const url = await caricaAudio(id, scelte.voce);
     setAttesa(false);
     if (!url) return;
-    const a = new Audio(url);
-    a.playbackRate = scelte.velocita;
-    a.onended = () => setProva(null);
-    await a.play().catch(() => setProva(null));
-    // 15 secondi bastano per sentire voce e velocita'
-    const timer = window.setTimeout(() => {
-      a.pause();
-      setProva(null);
-    }, 15000);
-    setProva(() => () => {
-      window.clearTimeout(timer);
-      a.pause();
-      URL.revokeObjectURL(url);
-    });
+    // 15 secondi bastano per sentire voce, velocita' e volume
+    const ferma = await avviaAudio(url, scelte, () => setProva(null), 15000);
+    setProva(() => ferma);
   }
 
   return (
@@ -115,6 +104,12 @@ function VoceAudio() {
       <div className="riga-spaziata piccolo tenue">
         <span>più lenta</span>
         <span>più veloce</span>
+      </div>
+      <label htmlFor="vol">Intensità (volume): {Math.round(scelte.volume * 100)}%</label>
+      <input id="vol" type="range" min="0.5" max="2" step="0.1" value={scelte.volume} onChange={(e) => cambia({ volume: Number(e.target.value) })} />
+      <div className="riga-spaziata piccolo tenue">
+        <span>più piano</span>
+        <span>più forte</span>
       </div>
       <button className="btn btn-tenue btn-largo" style={{ marginTop: 12 }} disabled={!conAudio(scelte.voce) || attesa} onClick={provaVoce}>
         {attesa ? "Un attimo…" : prova ? "Ferma la prova" : "▶ Prova la voce"}
