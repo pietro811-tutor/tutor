@@ -1,5 +1,6 @@
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ParolaChiave } from "./tipi";
+import { leggi, type Brano } from "./voce";
 
 // ---------- il volto di Virgilio ----------
 
@@ -193,3 +194,29 @@ export const Icone = {
   penna: icona(<path d="m15 5 4 4L8 20H4v-4zM13 7l4 4" />),
   indietro: icona(<path d="M15 5l-7 7 7 7" />),
 };
+
+/** Legge ad alta voce con la voce del telefono (gratis, funziona anche senza internet). */
+export function BottoneLeggi({ brani, etichetta = "Leggimelo" }: { brani: () => Brano[]; etichetta?: string }) {
+  const [attivo, setAttivo] = useState(false);
+  const ferma = useRef<(() => void) | null>(null);
+  useEffect(() => () => ferma.current?.(), []);
+  if (typeof speechSynthesis === "undefined") return null;
+  function premi() {
+    if (attivo) {
+      ferma.current?.();
+      ferma.current = null;
+      setAttivo(false);
+      return;
+    }
+    setAttivo(true);
+    ferma.current = leggi(brani(), () => {
+      ferma.current = null;
+      setAttivo(false);
+    });
+  }
+  return (
+    <button className="btn btn-tenue btn-piccolo" onClick={premi}>
+      {attivo ? Icone.stop : Icone.cuffie} {attivo ? "Ferma" : etichetta}
+    </button>
+  );
+}

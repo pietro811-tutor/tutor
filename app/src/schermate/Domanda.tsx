@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDati } from "../stato";
-import { Attesa, Icone, TestoRicco } from "../componenti";
+import { Attesa, BottoneLeggi, Icone, TestoRicco } from "../componenti";
 import { ascolta, ascoltoDisponibile, type Ascolto } from "../voce";
 import { testoAttesa } from "./Ripeti";
 import type { RispostaDomanda } from "../tipi";
@@ -121,7 +121,10 @@ export function Domanda({
       {risposta?.stato === "errore" && <div className="avviso">Qualcosa è andato storto: {risposta.errore}</div>}
       {r && (
         <>
-          <div className="etichetta">Virgilio</div>
+          <div className="riga-spaziata">
+            <div className="etichetta">Virgilio</div>
+            <BottoneLeggi brani={() => [r.risposta]} />
+          </div>
           <TestoRicco testo={r.risposta} />
           {r.materiali && r.materiali.length > 0 && <p className="tenue piccolo">📚 Dai tuoi materiali: {r.materiali.join(" · ")}</p>}
           {!r.nei_tuoi_materiali && <p className="tenue piccolo">➕ Parte di questo non è nei tuoi materiali: il professore potrebbe non chiederlo.</p>}

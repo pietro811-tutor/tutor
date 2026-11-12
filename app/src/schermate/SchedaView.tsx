@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDati } from "../stato";
-import { Attesa, Foglio, Icone, Stelle, TestoRicco, Virgilio } from "../componenti";
+import { Attesa, BottoneLeggi, Foglio, Icone, Stelle, TestoRicco, Virgilio } from "../componenti";
 import { leggi } from "../voce";
 import type { Approfondimento, ParolaChiave, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
@@ -119,6 +119,9 @@ export default function SchedaView() {
       <div ref={contenuto}>
         {tappa === 1 && (
           <>
+            <div style={{ textAlign: "right", marginBottom: 8 }}>
+              <BottoneLeggi brani={() => [scheda.semplice, { pausa: 500 }, scheda.analogia ?? ""]} />
+            </div>
             <Virgilio>
               <p className="etichetta" style={{ marginBottom: 4 }}>
                 In parole semplici
@@ -136,6 +139,9 @@ export default function SchedaView() {
 
         {tappa === 2 && (
           <div className="carta">
+            <div style={{ textAlign: "right", marginBottom: 8 }}>
+              <BottoneLeggi brani={() => scheda.schema.flatMap((v) => [v.voce, { pausa: 300 }, v.testo, { pausa: 700 }])} etichetta="Leggimi lo schema" />
+            </div>
             {scheda.schema.map((v) => (
               <div key={v.voce} className="schema-voce">
                 <div className="etichetta">{v.voce}</div>
@@ -147,7 +153,10 @@ export default function SchedaView() {
 
         {tappa === 3 && (
           <>
-            <p className="tenue piccolo">Tocca le parole evidenziate per un approfondimento. Oppure seleziona un pezzo di testo e usa la penna.</p>
+            <div className="riga-spaziata" style={{ gap: 10 }}>
+              <p className="tenue piccolo" style={{ margin: 0 }}>Tocca le parole evidenziate per un approfondimento, oppure seleziona un pezzo di testo e usa la penna.</p>
+              <BottoneLeggi brani={() => [scheda.dettaglio]} />
+            </div>
             <div className="carta">
               <TestoRicco testo={scheda.dettaglio} parole={parole} onParola={apriParola} />
             </div>
@@ -258,7 +267,10 @@ function FoglioPenna({ penna, scheda, onChiudi }: { penna: Penna; scheda: Scheda
     return (
       <Foglio onChiudi={onChiudi}>
         <div className="etichetta">Approfondimento</div>
-        <h2>{p.termine}</h2>
+        <div className="riga-spaziata">
+          <h2>{p.termine}</h2>
+          <BottoneLeggi brani={() => [p.termine, { pausa: 400 }, p.spiegazione, { pausa: 500 }, p.all_esame ? "All'esame: " + p.all_esame : ""]} />
+        </div>
         <TestoRicco testo={p.spiegazione} />
         {p.all_esame && (
           <div className="verifica verifica-integrazione">
@@ -350,7 +362,10 @@ function FoglioPenna({ penna, scheda, onChiudi }: { penna: Penna; scheda: Scheda
       {risposta?.stato === "errore" && <div className="avviso">Qualcosa è andato storto: {risposta.errore}</div>}
       {app && (
         <>
-          <div className="etichetta">In breve</div>
+          <div className="riga-spaziata">
+            <div className="etichetta">In breve</div>
+            <BottoneLeggi brani={() => [app.breve, { pausa: 500 }, app.approfondimento, { pausa: 500 }, app.all_esame ? "All'esame: " + app.all_esame : ""]} />
+          </div>
           <TestoRicco testo={app.breve} classe="grande" />
           <div className="etichetta" style={{ marginTop: 12 }}>
             Approfondimento
