@@ -10,5 +10,5 @@
   "whisper_python": "python",
   "trascrivi": "../trascrizione/trascrivi.py",
   "intervallo_secondi": 5,
-  "voce": { "nome": "if_sara", "velocita": 0.93 }
+  "voce": { "nome": "if_sara", "velocita": 0.8 }
 }

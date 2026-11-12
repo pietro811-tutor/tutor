@@ -137,9 +137,6 @@ export default function SchedaView() {
       <div ref={contenuto}>
         {tappa === 1 && (
           <>
-            <div style={{ textAlign: "right", marginBottom: 8 }}>
-              <BottoneLeggi brani={() => [scheda.semplice, { pausa: 500 }, scheda.analogia ?? ""]} />
-            </div>
             <Virgilio>
               <p className="etichetta" style={{ marginBottom: 4 }}>
                 In parole semplici
