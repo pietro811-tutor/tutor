@@ -100,6 +100,7 @@ interface Azioni {
   salvaEsame(e: Esame): Promise<void>;
   scegliMateria(slug: string): void;
   impostaPausa(attiva: boolean): Promise<void>;
+  cambiaStelle(argomento: string, stelle: 1 | 2 | 3 | null): void; // null = torna a quelle di Virgilio
   creaMateria(nome: string, tipo: Esame["tipo"], data?: string): Promise<string>;
   aspettaRisposta(id: string, ogniMs?: number): () => void;
 }
@@ -425,9 +426,32 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     };
   }, [sincronizza, salvaProgressiRemoto]);
 
+  const cambiaStelle = useCallback<Azioni["cambiaStelle"]>(
+    (argomento, stelle) => {
+      aggiornaProgressi((p) => {
+        p.stelle ??= {};
+        if (stelle == null) delete p.stelle[argomento];
+        else p.stelle[argomento] = stelle;
+      });
+    },
+    [aggiornaProgressi],
+  );
+
+  // le stelle decise da te contano più di quelle di Virgilio, ovunque
+  const programmaTuo = useMemo(() => {
+    const mie = dati.progressi.stelle;
+    if (!dati.programma || !mie || !Object.keys(mie).length) return dati.programma;
+    return {
+      ...dati.programma,
+      argomenti: dati.programma.argomenti.map((a) =>
+        mie[a.id] && mie[a.id] !== a.importanza ? { ...a, importanza: mie[a.id], importanza_virgilio: a.importanza } : a,
+      ),
+    };
+  }, [dati.programma, dati.progressi.stelle]);
+
   const valore = useMemo(
-    () => ({ ...dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
-    [dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
+    () => ({ ...dati, programma: programmaTuo, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
+    [dati, programmaTuo, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
   );
   return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
 }

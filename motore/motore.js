@@ -149,8 +149,10 @@ function prossimoLavoro() {
       return { chiave: "p:" + esame.slug, descrizione: "Programma aggiornato", fai: () => costruisciProgramma(config, radice, esame, letti) };
     }
     if (programma) {
-      // prima le schede dei più chiesti all'esame, poi i normali, poi i meno chiesti
-      for (const a of [...programma.argomenti].sort((x, y) => y.importanza - x.importanza || x.ordine - y.ordine)) {
+      // prima le schede dei più chiesti all'esame, poi i normali, poi i meno chiesti; le stelle decise dallo studente (progressi.json) contano di più
+      const sue = leggiJson(path.join(radice, "progressi.json"), {})?.stelle ?? {};
+      const stelle = (x) => sue[x.id] ?? x.importanza;
+      for (const a of [...programma.argomenti].sort((x, y) => stelle(y) - stelle(x) || x.ordine - y.ordine)) {
         const scheda = leggiJson(path.join(p.schede, `${a.id}.json`));
         if ((!scheda || !uguali(scheda.basata_su, a.fonti)) && puoRiprovare("s:" + a.id)) {
           return { chiave: "s:" + a.id, descrizione: `Scheda: ${a.titolo}`, fai: () => costruisciScheda(config, radice, esame, a, programma) };

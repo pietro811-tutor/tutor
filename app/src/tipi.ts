@@ -40,7 +40,8 @@ export interface Argomento {
   id: string;
   titolo: string;
   ordine: number;
-  importanza: 1 | 2 | 3;
+  importanza: 1 | 2 | 3; // quanto viene chiesto: se l'hai cambiata tu, qui c'è la tua
+  importanza_virgilio?: 1 | 2 | 3; // solo se l'hai cambiata: cosa aveva deciso Virgilio
   sintesi: string;
   fonti: string[]; // id dei materiali
 }
@@ -154,6 +155,7 @@ export interface Progressi {
   carte: Record<string, unknown>; // stato FSRS di ogni flashcard
   checkin: Record<string, Umore>; // per giorno
   giorni_studio: string[];
+  stelle?: Record<string, 1 | 2 | 3>; // le stelle che hai deciso tu, al posto di quelle di Virgilio
   richieste: { id: string; tipo: TipoRichiesta; argomento?: string; creata: string; testo?: string }[];
 }
 
