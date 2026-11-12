@@ -23,7 +23,7 @@ export class ErroreClaude extends Error {
 }
 
 // Con l'abbonamento Pro, quando la quota è finita Claude Code risponde "Credit balance is too low".
-const SEMBRA_LIMITE = /not logged in|please run \/login|credit balance|usage limit|rate limit|limit reached|limit will reset|too many requests|overloaded|429|529/i;
+const SEMBRA_LIMITE = /session limit|weekly limit|hit your|limit · resets|not logged in|please run \/login|credit balance|usage limit|rate limit|limit reached|limit will reset|too many requests|overloaded|429|529/i;
 
 function chiamaUnaVolta({ config, prompt, modello, strumenti, cwd, maxTurni, timeoutMs }) {
   const args = [
