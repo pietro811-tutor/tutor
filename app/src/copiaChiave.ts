@@ -44,3 +44,27 @@ export async function leggiCopia(): Promise<Config | null> {
     return null;
   }
 }
+
+// ---- gestore password del telefono (Brave / Chrome): salva la chiave e la rimette con impronta o PIN ----
+type PC = { id: string; password?: string };
+const cred = () => (navigator as unknown as { credentials?: CredentialsContainer }).credentials;
+
+export async function ricordaPassword(c: Config): Promise<void> {
+  try {
+    const PasswordCredentialCtor = (window as unknown as { PasswordCredential?: new (d: { id: string; password: string; name?: string }) => Credential }).PasswordCredential;
+    if (PasswordCredentialCtor && cred()) await cred()!.store(new PasswordCredentialCtor({ id: c.repo, password: c.token, name: "Virgilio" }));
+  } catch {
+    /* pazienza: ci pensa il modulo di accesso */
+  }
+}
+
+/** Chiede al telefono la password salvata. silenziosa = senza finestre, all'avvio. */
+export async function passwordSalvata(chiediSeServe: boolean): Promise<Config | null> {
+  try {
+    const opzioni = { password: true, mediation: chiediSeServe ? "optional" : "silent" } as unknown as CredentialRequestOptions;
+    const r = (await cred()?.get(opzioni)) as unknown as PC | null | undefined;
+    return r?.password && r.id ? { token: r.password, repo: r.id } : null;
+  } catch {
+    return null;
+  }
+}

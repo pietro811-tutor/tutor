@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
 import "./stile.css";
 import { leggiConfig, salvaConfig, ProviderDati, useDati, type Config } from "./stato";
-import { leggiCopia } from "./copiaChiave";
+import { leggiCopia, passwordSalvata } from "./copiaChiave";
 import { Icone } from "./componenti";
 import { carteDaRipassare } from "./piano";
 import Benvenuto from "./schermate/Benvenuto";
@@ -52,7 +52,7 @@ function App() {
   // se la chiave è sparita dal telefono, la ripristino dalla seconda copia
   useEffect(() => {
     if (controllato) return;
-    void leggiCopia().then((c) => {
+    void (async () => (await leggiCopia()) ?? (await passwordSalvata(false)))().then((c) => {
       if (c) {
         salvaConfig(c);
         setConfig(c);

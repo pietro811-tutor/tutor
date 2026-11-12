@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArchivioGitHub, ErroreArchivio } from "../archivio";
 import { Attesa, VoltoVirgilio } from "../componenti";
 import { salvaConfig, type Config } from "../stato";
+import { ricordaPassword, passwordSalvata } from "../copiaChiave";
 
 const REPO_PREDEFINITO = "pietro811-tutor/tutor-dati";
 
@@ -12,18 +13,31 @@ export default function Benvenuto({ onPronto }: { onPronto: (c: Config) => void 
   const [attesa, setAttesa] = useState(false);
 
   async function entra() {
+    if (!token.trim() || attesa) return;
     setErrore("");
     setAttesa(true);
     try {
       const config = { token: token.trim(), repo: repo.trim() };
       await new ArchivioGitHub(config.token, config.repo).verifica();
       salvaConfig(config);
+      await ricordaPassword(config);
       onPronto(config);
     } catch (e) {
       setErrore(e instanceof ErroreArchivio ? e.message : "Non riesco a collegarmi. Controlla la connessione.");
     } finally {
       setAttesa(false);
     }
+  }
+
+  async function conPasswordSalvata() {
+    setErrore("");
+    const c = await passwordSalvata(true);
+    if (!c) {
+      setErrore("Il telefono non mi ha dato nessuna password salvata. Incolla la chiave qui sotto: ti chiederà se salvarla.");
+      return;
+    }
+    setToken(c.token);
+    setRepo(c.repo);
   }
 
   return (
@@ -38,13 +52,23 @@ export default function Benvenuto({ onPronto }: { onPronto: (c: Config) => void 
         <p className="piccolo tenue">
           Serve una sola volta: incolla la chiave di accesso che hai creato su GitHub. Resta solo su questo telefono.
         </p>
-        <label htmlFor="token">Chiave di accesso</label>
-        <input id="token" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder="github_pat_..." />
-        <label htmlFor="repo">Archivio</label>
-        <input id="repo" type="text" value={repo} onChange={(e) => setRepo(e.target.value)} />
-        {errore && <div className="avviso" style={{ marginTop: 12 }}>{errore}</div>}
-        <button className="btn btn-largo" style={{ marginTop: 16 }} disabled={!token.trim() || attesa} onClick={entra}>
-          {attesa ? <Attesa /> : "Entra"}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void entra();
+          }}
+        >
+          <label htmlFor="repo">Archivio</label>
+          <input id="repo" name="username" type="text" autoComplete="username" value={repo} onChange={(e) => setRepo(e.target.value)} />
+          <label htmlFor="token">Chiave di accesso</label>
+          <input id="token" name="password" type="password" autoComplete="current-password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="github_pat_..." />
+          {errore && <div className="avviso" style={{ marginTop: 12 }}>{errore}</div>}
+          <button type="submit" className="btn btn-largo" style={{ marginTop: 16 }} disabled={!token.trim() || attesa}>
+            {attesa ? <Attesa /> : "Entra"}
+          </button>
+        </form>
+        <button type="button" className="btn btn-largo btn-tenue" style={{ marginTop: 10 }} onClick={conPasswordSalvata}>
+          🔐 Usa la password salvata (impronta)
         </button>
       </div>
     </div>
