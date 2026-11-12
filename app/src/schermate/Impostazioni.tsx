@@ -59,7 +59,7 @@ function Gemini() {
 export default function Impostazioni({ onEsci }: { onEsci: () => void }) {
   const { esame, progressi, salvaEsame, aggiornaProgressi } = useDati();
   const [nome, setNome] = useState(progressi.nome);
-  const [nomeEsame, setNomeEsame] = useState(esame?.nome ?? "Anatomia patologica");
+  const [nomeEsame, setNomeEsame] = useState(esame?.nome ?? "");
   const [data, setData] = useState(esame?.data_esame ?? "");
   const [salvato, setSalvato] = useState(false);
   const [errore, setErrore] = useState("");
@@ -68,12 +68,13 @@ export default function Impostazioni({ onEsci }: { onEsci: () => void }) {
     setErrore("");
     try {
       aggiornaProgressi((p) => void (p.nome = nome.trim()));
-      await salvaEsame({
-        slug: esame?.slug ?? "anatomia-patologica",
-        nome: nomeEsame.trim() || "Esame",
-        tipo: esame?.tipo ?? "orale",
-        ...(data ? { data_esame: data } : {}),
-      });
+      if (esame)
+        await salvaEsame({
+          slug: esame.slug,
+          nome: nomeEsame.trim() || esame.nome,
+          tipo: esame.tipo,
+          ...(data ? { data_esame: data } : {}),
+        });
       setSalvato(true);
     } catch {
       setErrore("Non riesco a salvare. Controlla la connessione.");
@@ -89,10 +90,17 @@ export default function Impostazioni({ onEsci }: { onEsci: () => void }) {
       <div className="carta">
         <label htmlFor="nome">Come ti chiamo?</label>
         <input id="nome" type="text" value={nome} onChange={(e) => setNome(e.target.value)} />
-        <label htmlFor="esame">Esame</label>
-        <input id="esame" type="text" value={nomeEsame} onChange={(e) => setNomeEsame(e.target.value)} />
-        <label htmlFor="data">Data dell'orale</label>
-        <input id="data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+        {esame ? (
+          <>
+            <label htmlFor="esame">Materia che stai studiando</label>
+            <input id="esame" type="text" value={nomeEsame} onChange={(e) => setNomeEsame(e.target.value)} />
+            <label htmlFor="data">Data dell'esame</label>
+            <input id="data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+          </>
+        ) : null}
+        <Link to="/materie" className="piccolo" style={{ display: "inline-block", marginTop: 10 }}>
+          Cambia o aggiungi una materia
+        </Link>
         {errore && <div className="avviso" style={{ marginTop: 12 }}>{errore}</div>}
         <button className="btn btn-largo" style={{ marginTop: 16 }} onClick={salva}>
           {salvato ? "Salvato ✓" : "Salva"}

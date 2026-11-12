@@ -21,7 +21,7 @@ function giorniDaUltimoStudio(giorni: string[]) {
 }
 
 export default function Oggi() {
-  const { pronto, errore, esame, programma, schede, materiali, progressi, aggiornaProgressi } = useDati();
+  const { pronto, errore, esame, esami, programma, schede, materiali, progressi, aggiornaProgressi } = useDati();
   const [chiedi, setChiedi] = useState<null | { rid?: string; domanda?: string }>(null);
   const umore = progressi.checkin[oggi()];
   const nome = progressi.nome;
@@ -80,12 +80,23 @@ export default function Oggi() {
         </div>
       )}
 
+      {!esame && (
+        <Link to="/materie" className="carta carta-cliccabile">
+          <div className="etichetta">Per cominciare</div>
+          <h3>Dimmi che materia studiamo</h3>
+          <p className="tenue piccolo" style={{ margin: 0 }}>Ne puoi aggiungere quante vuoi: ognuna ha la sua cartella.</p>
+        </Link>
+      )}
+
       {esame && (
         <div className="carta riga-spaziata">
           <div>
             <div className="etichetta">{esame.nome}</div>
+            <Link to="/materie" className="piccolo" style={{ display: "block", marginBottom: 4 }}>
+              {esami.length > 1 ? "Cambia materia" : "Aggiungi un'altra materia"}
+            </Link>
             {piano.giorni != null ? (
-              <div className="tenue piccolo">{piano.giorni > 0 ? "giorni all'orale" : piano.giorni === 0 ? "L'orale è oggi. In bocca al lupo!" : "Esame passato"}</div>
+              <div className="tenue piccolo">{piano.giorni > 0 ? esame.tipo === "orale" ? "giorni all'orale" : "giorni all'esame" : piano.giorni === 0 ? "L'orale è oggi. In bocca al lupo!" : "Esame passato"}</div>
             ) : (
               <Link to="/impostazioni" className="piccolo">
                 Dimmi la data dell'esame

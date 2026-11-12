@@ -22,6 +22,7 @@ export interface Config {
 const CHIAVE_CONFIG = "tutor:config";
 const CHIAVE_CACHE = "tutor:cache";
 const CHIAVE_PROGRESSI = "tutor:progressi";
+const CHIAVE_MATERIA = "tutor:materia"; // la materia scelta: si riapre sempre quella
 const CHIAVE_INPUT = "tutor:input-richieste"; // per poter chiedere a Gemini se il PC e' spento
 
 /** Dopo quanto, senza segni dal PC, si chiede a Gemini. */
@@ -79,7 +80,8 @@ interface Dati {
   pronto: boolean;
   errore?: string;
   sincronizzando: boolean;
-  esame?: Esame;
+  esame?: Esame; // la materia che stai studiando adesso
+  esami: Esame[]; // tutte le tue materie
   programma?: Programma;
   schede: Record<string, Scheda>;
   materiali: MaterialeVisto[];
@@ -93,6 +95,8 @@ interface Azioni {
   inviaRichiesta(tipo: TipoRichiesta, input: Record<string, unknown>, extra?: { argomento?: string; testo?: string }): Promise<string>;
   caricaFile(file: Blob, nome: string, tipo: MaterialeMeta["tipo"], gruppo?: string): Promise<void>;
   salvaEsame(e: Esame): Promise<void>;
+  scegliMateria(slug: string): void;
+  creaMateria(nome: string, tipo: Esame["tipo"], data?: string): Promise<string>;
   aspettaRisposta(id: string, ogniMs?: number): () => void;
 }
 
@@ -109,12 +113,14 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   const [dati, setDati] = useState<Dati>(() => ({
     pronto: false,
     sincronizzando: false,
+    esami: [],
     schede: {},
     materiali: [],
     risposte: {},
     progressi: leggiLocale<Progressi>(CHIAVE_PROGRESSI) ?? progressiVuoti(),
   }));
   const progressiRef = useRef(dati.progressi);
+  const materiaRef = useRef<string | null>(leggiLocale<string>(CHIAVE_MATERIA));
   const albero = useRef<VoceAlbero[]>([]);
   const timerSalva = useRef<number | undefined>(undefined);
 
@@ -159,13 +165,19 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   const sincronizza = useCallback(async () => {
     if (!archivio) return;
     setDati((d) => ({ ...d, sincronizzando: true }));
+    const voluta = materiaRef.current;
     try {
       albero.current = await archivio.albero();
       const percorsi = albero.current.map((v) => v.path);
 
-      // un solo esame per ora: il primo che trovo
-      const fileEsame = percorsi.find((p) => /^esami\/[^/]+\/esame\.json$/.test(p));
-      const esame = fileEsame ? await leggiJson<Esame>(fileEsame) : null;
+      // tutte le materie; si apre quella scelta l'ultima volta
+      const esami: Esame[] = [];
+      for (const p of percorsi.filter((p) => /^esami\/[^/]+\/esame\.json$/.test(p))) {
+        const e = await leggiJson<Esame>(p);
+        if (e) esami.push(e);
+      }
+      esami.sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+      const esame = esami.find((e) => e.slug === materiaRef.current) ?? esami[0] ?? null;
       const base = esame ? `esami/${esame.slug}` : "";
 
       const programma = esame ? await leggiJson<Programma>(`${base}/programma.json`) : null;
@@ -204,12 +216,14 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         if (ris) risposte[r.id] = ris;
       }
 
+      if (materiaRef.current !== voluta) return; // nel frattempo hai cambiato materia: ci pensa il giro nuovo
       setDati((d) => ({
         ...d,
         pronto: true,
         errore: undefined,
         sincronizzando: false,
         esame: esame ?? undefined,
+        esami,
         programma: programma ?? undefined,
         schede,
         materiali,
@@ -337,9 +351,39 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     async (e) => {
       if (!archivio) return;
       await archivio.scrivi(`esami/${e.slug}/esame.json`, testoInBase64(JSON.stringify(e, null, 1)), "Esame");
-      setDati((d) => ({ ...d, esame: e }));
+      setDati((d) => ({ ...d, esame: e, esami: [...d.esami.filter((x) => x.slug !== e.slug), e].sort((a, b) => a.nome.localeCompare(b.nome, "it")) }));
     },
     [archivio],
+  );
+
+  const scegliMateria = useCallback<Azioni["scegliMateria"]>(
+    (slug) => {
+      materiaRef.current = slug;
+      scriviLocale(CHIAVE_MATERIA, slug);
+      // svuoto subito, poi carico la materia nuova
+      setDati((d) => ({ ...d, pronto: false, esame: d.esami.find((e) => e.slug === slug), programma: undefined, schede: {}, materiali: [] }));
+      sincronizza();
+    },
+    [sincronizza],
+  );
+
+  const creaMateria = useCallback<Azioni["creaMateria"]>(
+    async (nome, tipo, data) => {
+      const radiceSlug =
+        nome
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 40) || "materia";
+      let slug = radiceSlug;
+      for (let n = 2; dati.esami.some((e) => e.slug === slug); n++) slug = `${radiceSlug}-${n}`;
+      await salvaEsame({ slug, nome: nome.trim(), tipo, ...(data ? { data_esame: data } : {}) });
+      scegliMateria(slug);
+      return slug;
+    },
+    [dati.esami, salvaEsame, scegliMateria],
   );
 
   useEffect(() => {
@@ -357,8 +401,8 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   }, [sincronizza, salvaProgressiRemoto]);
 
   const valore = useMemo(
-    () => ({ ...dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, aspettaRisposta }),
-    [dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, aspettaRisposta],
+    () => ({ ...dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, aspettaRisposta }),
+    [dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, aspettaRisposta],
   );
   return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
 }

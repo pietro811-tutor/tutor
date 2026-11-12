@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useRef, useState } from "react";
 import { useDati, nuovoId } from "../stato";
 import { Attesa, Virgilio } from "../componenti";
@@ -67,7 +68,22 @@ export default function Carica() {
         <p>Dammi tutto quello che hai: lo leggo, lo controllo e lo trasformo in schede. Le pagine dello stesso capitolo caricale insieme, in ordine.</p>
       </Virgilio>
 
-      {!esame && <div className="avviso" style={{ marginTop: 14 }}>Prima serve un esame: vai in Impostazioni.</div>}
+      {!esame && (
+        <div className="avviso" style={{ marginTop: 14 }}>
+          Prima dimmi che materia studiamo: <Link to="/materie">aggiungila qui</Link>.
+        </div>
+      )}
+      {esame && (
+        <div className="carta riga-spaziata" style={{ marginTop: 14 }}>
+          <div>
+            <div className="etichetta">I file vanno nella cartella di</div>
+            <strong>{esame.nome}</strong>
+          </div>
+          <Link to="/materie" className="piccolo">
+            Cambia
+          </Link>
+        </div>
+      )}
 
       <div className="colonna" style={{ margin: "18px 0" }}>
         <button className="btn btn-largo btn-terra" disabled={!esame || !!stato} onClick={() => scatta.current?.click()}>

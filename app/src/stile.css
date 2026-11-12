@@ -476,7 +476,8 @@ textarea {
 }
 input[type="text"],
 input[type="date"],
-input[type="password"] {
+input[type="password"],
+select {
   width: 100%;
   border: 1px solid var(--linea);
   border-radius: 12px;
@@ -617,4 +618,13 @@ label {
   padding: 8px 10px;
   border-radius: 10px;
   background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.materia {
+  font: inherit;
+  border: 1px solid var(--linea);
+}
+.materia-attiva {
+  border-color: var(--verde);
+  box-shadow: 0 0 0 1px var(--verde) inset;
 }
