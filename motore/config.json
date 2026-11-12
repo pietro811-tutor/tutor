@@ -4,7 +4,7 @@
   "repo": "pietro811-tutor/tutor-dati",
   "gh_config": "./accesso-github",
   "audio_pc": "../audio-lezioni",
-  "modelli": { "veloce": "sonnet", "profondo": "opus" },
+  "modelli": { "veloce": "sonnet", "profondo": "sonnet" },
   "modello_schede": "veloce",
   "claude_config": "./accesso-claude",
   "whisper_python": "python",
