@@ -1,0 +1,13 @@
+{
+  "dati": "../dati",
+  "modalita": "git",
+  "repo": "pietro811-tutor/tutor-dati",
+  "gh_config": "./accesso-github",
+  "audio_pc": "../audio-lezioni",
+  "modelli": { "veloce": "sonnet", "profondo": "opus" },
+  "modello_schede": "veloce",
+  "claude_config": "./accesso-claude",
+  "whisper_python": "python",
+  "trascrivi": "../trascrizione/trascrivi.py",
+  "intervallo_secondi": 5
+}

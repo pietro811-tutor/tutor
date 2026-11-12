@@ -1,0 +1,14 @@
+{
+  "name": "tutor-motore",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Il motore di Virgilio: gira sul PC e lavora con Claude Code (abbonamento Pro).",
+  "scripts": {
+    "start": "node motore.js"
+  },
+  "dependencies": {
+    "mammoth": "^1.13.0",
+    "unpdf": "^1.0.0"
+  }
+}

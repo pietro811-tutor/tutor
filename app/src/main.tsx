@@ -1,0 +1,65 @@
+import { StrictMode, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
+import "./stile.css";
+import { leggiConfig, ProviderDati, useDati, type Config } from "./stato";
+import { Icone } from "./componenti";
+import { carteDaRipassare } from "./piano";
+import Benvenuto from "./schermate/Benvenuto";
+import Oggi from "./schermate/Oggi";
+import Programma from "./schermate/Programma";
+import SchedaView from "./schermate/SchedaView";
+import Ripasso from "./schermate/Ripasso";
+import Carica from "./schermate/Carica";
+import Impostazioni from "./schermate/Impostazioni";
+
+function Navigazione() {
+  const { schede, progressi } = useDati();
+  const daRipassare = carteDaRipassare(schede, progressi).length;
+  return (
+    <nav className="navigazione">
+      <NavLink to="/" end>
+        {Icone.oggi}Oggi
+      </NavLink>
+      <NavLink to="/programma">
+        {Icone.programma}Programma
+      </NavLink>
+      <NavLink to="/ripasso">
+        <span className="pallino-nav" {...(daRipassare ? { "data-n": daRipassare } : {})}>
+          {Icone.ripasso}
+        </span>
+        Ripasso
+      </NavLink>
+      <NavLink to="/carica">
+        {Icone.carica}Carica
+      </NavLink>
+    </nav>
+  );
+}
+
+function App() {
+  const [config, setConfig] = useState<Config | null>(leggiConfig());
+  // sul PC, in sviluppo, si puo' usare la cartella locale senza chiave
+  if (!config && !import.meta.env.DEV) return <Benvenuto onPronto={setConfig} />;
+  return (
+    <ProviderDati config={config}>
+      <HashRouter>
+        <Routes>
+          <Route path="/" element={<Oggi />} />
+          <Route path="/programma" element={<Programma />} />
+          <Route path="/scheda/:id" element={<SchedaView />} />
+          <Route path="/ripasso" element={<Ripasso />} />
+          <Route path="/carica" element={<Carica />} />
+          <Route path="/impostazioni" element={<Impostazioni onEsci={() => setConfig(null)} />} />
+        </Routes>
+        <Navigazione />
+      </HashRouter>
+    </ProviderDati>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

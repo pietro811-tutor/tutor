@@ -1,0 +1,355 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArchivioGitHub, ArchivioLocale, fileInBase64, testoInBase64, type Archivio, type VoceAlbero } from "./archivio";
+import { leggiChiaveGemini, pennaConGemini, valutaConGemini } from "./gemini";
+import type {
+  Esame,
+  MaterialeMeta,
+  Programma,
+  Progressi,
+  Richiesta,
+  Risposta,
+  Scheda,
+  TipoRichiesta,
+} from "./tipi";
+
+// ---------- configurazione e cache sul telefono ----------
+
+export interface Config {
+  token: string;
+  repo: string;
+}
+
+const CHIAVE_CONFIG = "tutor:config";
+const CHIAVE_CACHE = "tutor:cache";
+const CHIAVE_PROGRESSI = "tutor:progressi";
+const CHIAVE_INPUT = "tutor:input-richieste"; // per poter chiedere a Gemini se il PC e' spento
+
+/** Dopo quanto, senza segni dal PC, si chiede a Gemini. */
+export const ATTESA_PC_MS = 30000;
+
+function leggiLocale<T>(chiave: string): T | null {
+  try {
+    const v = localStorage.getItem(chiave);
+    return v ? (JSON.parse(v) as T) : null;
+  } catch {
+    return null;
+  }
+}
+function scriviLocale(chiave: string, valore: unknown) {
+  try {
+    localStorage.setItem(chiave, JSON.stringify(valore));
+  } catch {
+    /* memoria piena: pazienza, si rilegge dall'archivio */
+  }
+}
+
+export const leggiConfig = () => leggiLocale<Config>(CHIAVE_CONFIG);
+export const salvaConfig = (c: Config | null) =>
+  c ? scriviLocale(CHIAVE_CONFIG, c) : localStorage.removeItem(CHIAVE_CONFIG);
+
+function creaArchivio(config: Config | null): Archivio | null {
+  if (config) return new ArchivioGitHub(config.token, config.repo);
+  if (import.meta.env.DEV) return new ArchivioLocale();
+  return null;
+}
+
+export const nuovoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+export const oggi = () => new Date().toLocaleDateString("sv-SE"); // AAAA-MM-GG
+
+function progressiVuoti(): Progressi {
+  return { aggiornato: "", nome: "", argomenti: {}, carte: {}, checkin: {}, giorni_studio: [], richieste: [] };
+}
+
+// ---------- stato dell'app ----------
+
+export interface StatoMateriale {
+  stato: "letto" | "errore";
+  titolo?: string;
+  avvisi?: string[];
+  errore?: string;
+}
+
+export interface MaterialeVisto extends MaterialeMeta {
+  stato: "attesa" | "letto" | "errore";
+  titolo?: string;
+  avvisi?: string[];
+}
+
+interface Dati {
+  pronto: boolean;
+  errore?: string;
+  sincronizzando: boolean;
+  esame?: Esame;
+  programma?: Programma;
+  schede: Record<string, Scheda>;
+  materiali: MaterialeVisto[];
+  risposte: Record<string, Risposta>;
+  progressi: Progressi;
+}
+
+interface Azioni {
+  sincronizza(): Promise<void>;
+  aggiornaProgressi(fn: (p: Progressi) => void): void;
+  inviaRichiesta(tipo: TipoRichiesta, input: Record<string, unknown>, extra?: { argomento?: string; testo?: string }): Promise<string>;
+  caricaFile(file: Blob, nome: string, tipo: MaterialeMeta["tipo"], gruppo?: string): Promise<void>;
+  salvaEsame(e: Esame): Promise<void>;
+  aspettaRisposta(id: string, ogniMs?: number): () => void;
+}
+
+const Contesto = createContext<(Dati & Azioni) | null>(null);
+
+export function useDati() {
+  const c = useContext(Contesto);
+  if (!c) throw new Error("useDati fuori da ProviderDati");
+  return c;
+}
+
+export function ProviderDati({ config, children }: { config: Config | null; children: ReactNode }) {
+  const archivio = useMemo(() => creaArchivio(config), [config]);
+  const [dati, setDati] = useState<Dati>(() => ({
+    pronto: false,
+    sincronizzando: false,
+    schede: {},
+    materiali: [],
+    risposte: {},
+    progressi: leggiLocale<Progressi>(CHIAVE_PROGRESSI) ?? progressiVuoti(),
+  }));
+  const progressiRef = useRef(dati.progressi);
+  const albero = useRef<VoceAlbero[]>([]);
+  const timerSalva = useRef<number | undefined>(undefined);
+
+  // legge un file JSON usando la cache del telefono quando non e' cambiato
+  const leggiJson = useCallback(
+    async <T,>(path: string): Promise<T | null> => {
+      if (!archivio) return null;
+      const voce = albero.current.find((v) => v.path === path);
+      if (!voce) return null;
+      const cache = leggiLocale<Record<string, { sha: string; testo: string }>>(CHIAVE_CACHE) ?? {};
+      if (cache[path]?.sha === voce.sha) return JSON.parse(cache[path].testo) as T;
+      const testo = await archivio.leggiTesto(path);
+      if (testo == null) return null;
+      cache[path] = { sha: voce.sha, testo };
+      scriviLocale(CHIAVE_CACHE, cache);
+      return JSON.parse(testo) as T;
+    },
+    [archivio],
+  );
+
+  const salvaProgressiRemoto = useCallback(async () => {
+    if (!archivio) return;
+    const p = progressiRef.current;
+    await archivio.scrivi("progressi.json", testoInBase64(JSON.stringify(p, null, 1)), "Progressi");
+  }, [archivio]);
+
+  const aggiornaProgressi = useCallback(
+    (fn: (p: Progressi) => void) => {
+      const copia: Progressi = structuredClone(progressiRef.current);
+      fn(copia);
+      copia.aggiornato = new Date().toISOString();
+      if (!copia.giorni_studio.includes(oggi())) copia.giorni_studio.push(oggi());
+      progressiRef.current = copia;
+      scriviLocale(CHIAVE_PROGRESSI, copia);
+      setDati((d) => ({ ...d, progressi: copia }));
+      window.clearTimeout(timerSalva.current);
+      timerSalva.current = window.setTimeout(() => salvaProgressiRemoto().catch(() => {}), 15000);
+    },
+    [salvaProgressiRemoto],
+  );
+
+  const sincronizza = useCallback(async () => {
+    if (!archivio) return;
+    setDati((d) => ({ ...d, sincronizzando: true }));
+    try {
+      albero.current = await archivio.albero();
+      const percorsi = albero.current.map((v) => v.path);
+
+      // un solo esame per ora: il primo che trovo
+      const fileEsame = percorsi.find((p) => /^esami\/[^/]+\/esame\.json$/.test(p));
+      const esame = fileEsame ? await leggiJson<Esame>(fileEsame) : null;
+      const base = esame ? `esami/${esame.slug}` : "";
+
+      const programma = esame ? await leggiJson<Programma>(`${base}/programma.json`) : null;
+
+      const schede: Record<string, Scheda> = {};
+      for (const p of percorsi.filter((p) => p.startsWith(`${base}/schede/`) && p.endsWith(".json"))) {
+        const s = await leggiJson<Scheda>(p);
+        if (s) schede[s.id] = s;
+      }
+
+      const statoMateriali = (esame && (await leggiJson<Record<string, StatoMateriale>>(`${base}/stato-materiali.json`))) || {};
+      const materiali: MaterialeVisto[] = [];
+      for (const p of percorsi.filter((p) => p.startsWith(`${base}/materiali/`) && p.endsWith(".json"))) {
+        const m = await leggiJson<MaterialeMeta>(p);
+        if (!m) continue;
+        const s = statoMateriali[m.id];
+        materiali.push({ ...m, stato: s?.stato ?? "attesa", titolo: s?.titolo, avvisi: s?.avvisi });
+      }
+      // anche gli audio messi direttamente sul PC
+      for (const [id, s] of Object.entries(statoMateriali)) {
+        if (!materiali.some((m) => m.id === id))
+          materiali.push({ id, nome: s.titolo ?? id, tipo: "audio", file: "", caricato: "", stato: s.stato, titolo: s.titolo, avvisi: s.avvisi });
+      }
+      materiali.sort((a, b) => (b.caricato || "").localeCompare(a.caricato || ""));
+
+      // progressi: vince la copia piu' recente
+      const remoti = await leggiJson<Progressi>("progressi.json");
+      if (remoti && remoti.aggiornato > (progressiRef.current.aggiornato || "")) {
+        progressiRef.current = { ...progressiVuoti(), ...remoti };
+        scriviLocale(CHIAVE_PROGRESSI, progressiRef.current);
+      }
+
+      const risposte: Record<string, Risposta> = {};
+      for (const r of progressiRef.current.richieste) {
+        const ris = await leggiJson<Risposta>(`risposte/${r.id}.json`);
+        if (ris) risposte[r.id] = ris;
+      }
+
+      setDati((d) => ({
+        ...d,
+        pronto: true,
+        errore: undefined,
+        sincronizzando: false,
+        esame: esame ?? undefined,
+        programma: programma ?? undefined,
+        schede,
+        materiali,
+        risposte,
+        progressi: progressiRef.current,
+      }));
+    } catch (e) {
+      setDati((d) => ({ ...d, pronto: true, sincronizzando: false, errore: e instanceof Error ? e.message : String(e) }));
+    }
+  }, [archivio, leggiJson]);
+
+  const inviaRichiesta = useCallback<Azioni["inviaRichiesta"]>(
+    async (tipo, input, extra) => {
+      if (!archivio) throw new Error("Archivio non configurato");
+      const id = nuovoId();
+      const r: Richiesta = { id, tipo, esame: dati.esame?.slug ?? "", creata: new Date().toISOString(), input };
+      await archivio.scrivi(`richieste/${id}.json`, testoInBase64(JSON.stringify(r, null, 1)), `Richiesta: ${tipo}`);
+      const inputs = leggiLocale<Record<string, Richiesta>>(CHIAVE_INPUT) ?? {};
+      inputs[id] = r;
+      // ne tengo solo le ultime 30
+      scriviLocale(CHIAVE_INPUT, Object.fromEntries(Object.entries(inputs).slice(-30)));
+      aggiornaProgressi((p) => {
+        p.richieste.push({ id, tipo, creata: r.creata, ...extra });
+      });
+      return id;
+    },
+    [archivio, dati.esame, aggiornaProgressi],
+  );
+
+  // per la riserva Gemini servono le schede piu' recenti
+  const schedeRef = useRef(dati.schede);
+  schedeRef.current = dati.schede;
+  const geminiInCorso = useRef(new Set<string>());
+
+  /** Il PC non risponde: il telefono chiede a Gemini e salva la risposta come farebbe il motore. */
+  const rispondiConGemini = useCallback(
+    async (id: string) => {
+      const chiave = leggiChiaveGemini();
+      const richiesta = (leggiLocale<Record<string, Richiesta>>(CHIAVE_INPUT) ?? {})[id];
+      if (!archivio || !chiave || !richiesta || geminiInCorso.current.has(id)) return;
+      const input = richiesta.input as { argomento: string; testo?: string; domanda?: string | null; trascrizione?: string };
+      const scheda = schedeRef.current[input.argomento];
+      if (!scheda) return;
+      geminiInCorso.current.add(id);
+      const segna = (r: Risposta) => setDati((d) => ({ ...d, risposte: { ...d.risposte, [id]: r } }));
+      segna({ id, stato: "in_corso", aggiornata: new Date().toISOString(), da: "gemini" });
+      try {
+        const output =
+          richiesta.tipo === "penna"
+            ? await pennaConGemini(chiave, scheda, input.testo ?? "")
+            : await valutaConGemini(
+                chiave,
+                scheda,
+                { domanda: input.domanda, trascrizione: input.trascrizione ?? "" },
+                (progressiRef.current.argomenti[input.argomento]?.ripetizioni ?? []).map((r) => r.voto),
+              );
+        const risposta: Risposta = { id, stato: "fatta", aggiornata: new Date().toISOString(), output, da: "gemini" };
+        segna(risposta);
+        // la salvo nell'archivio: cosi' il PC, quando si accende, non la rifa'
+        await archivio.scrivi(`risposte/${id}.json`, testoInBase64(JSON.stringify(risposta, null, 1)), "Risposta di Gemini").catch(() => {});
+      } catch (e) {
+        segna({ id, stato: "errore", aggiornata: new Date().toISOString(), errore: e instanceof Error ? e.message : String(e), da: "gemini" });
+      } finally {
+        geminiInCorso.current.delete(id);
+      }
+    },
+    [archivio],
+  );
+
+  const aspettaRisposta = useCallback<Azioni["aspettaRisposta"]>(
+    (id, ogniMs = 4000) => {
+      let fermo = false;
+      const inizio = Date.now();
+      let geminiChiesto = false;
+      const giro = async () => {
+        if (fermo || !archivio) return;
+        try {
+          const testo = await archivio.leggiTesto(`risposte/${id}.json`);
+          if (testo) {
+            const r = JSON.parse(testo) as Risposta;
+            setDati((d) => ({ ...d, risposte: { ...d.risposte, [id]: r } }));
+            if (r.stato !== "in_corso") return;
+          } else if (!geminiChiesto && Date.now() - inizio > ATTESA_PC_MS && leggiChiaveGemini()) {
+            // nessun segno dal PC: rispondo con Gemini, ma continuo a guardare se il PC si sveglia
+            geminiChiesto = true;
+            rispondiConGemini(id);
+          }
+        } catch {
+          /* rete assente: riprovo */
+        }
+        if (!fermo) window.setTimeout(giro, ogniMs);
+      };
+      giro();
+      return () => {
+        fermo = true;
+      };
+    },
+    [archivio, rispondiConGemini],
+  );
+
+  const caricaFile = useCallback<Azioni["caricaFile"]>(
+    async (file, nome, tipo, gruppo) => {
+      if (!archivio || !dati.esame) throw new Error("Prima serve l'esame");
+      const id = nuovoId();
+      const est = (nome.split(".").pop() || (tipo === "foto" ? "jpg" : "bin")).toLowerCase();
+      const base = `esami/${dati.esame.slug}/materiali`;
+      await archivio.scrivi(`${base}/${id}.${est}`, await fileInBase64(file), `Materiale: ${nome}`);
+      const meta: MaterialeMeta = { id, nome, tipo, file: `${id}.${est}`, gruppo, caricato: new Date().toISOString() };
+      await archivio.scrivi(`${base}/${id}.json`, testoInBase64(JSON.stringify(meta, null, 1)), `Materiale: ${nome}`);
+      setDati((d) => ({ ...d, materiali: [{ ...meta, stato: "attesa" }, ...d.materiali] }));
+    },
+    [archivio, dati.esame],
+  );
+
+  const salvaEsame = useCallback<Azioni["salvaEsame"]>(
+    async (e) => {
+      if (!archivio) return;
+      await archivio.scrivi(`esami/${e.slug}/esame.json`, testoInBase64(JSON.stringify(e, null, 1)), "Esame");
+      setDati((d) => ({ ...d, esame: e }));
+    },
+    [archivio],
+  );
+
+  useEffect(() => {
+    sincronizza();
+    const ogniMinuto = window.setInterval(sincronizza, 60000);
+    const alRitorno = () => {
+      if (document.visibilityState === "visible") sincronizza();
+      else salvaProgressiRemoto().catch(() => {});
+    };
+    document.addEventListener("visibilitychange", alRitorno);
+    return () => {
+      window.clearInterval(ogniMinuto);
+      document.removeEventListener("visibilitychange", alRitorno);
+    };
+  }, [sincronizza, salvaProgressiRemoto]);
+
+  const valore = useMemo(
+    () => ({ ...dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, aspettaRisposta }),
+    [dati, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, aspettaRisposta],
+  );
+  return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
+}

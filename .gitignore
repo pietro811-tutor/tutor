@@ -1,0 +1,16 @@
+# I dati di studio stanno in un archivio privato separato, mai qui
+dati/
+audio-lezioni/
+_termini_tmp/
+
+# Impostazioni di questo PC
+motore/config.locale.json
+motore/accesso-claude/
+motore/log.txt
+motore/log.txt.vecchio
+.claude/
+
+node_modules/
+dist/
+*.tmp
+motore/accesso-github/
