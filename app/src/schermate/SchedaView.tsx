@@ -148,6 +148,7 @@ export default function SchedaView() {
               <TestoRicco testo={scheda.dettaglio} parole={parole} onParola={apriParola} />
             </div>
             {scheda.verifiche.length > 0 && <Verifiche scheda={scheda} />}
+            {(scheda.integrazione?.length ?? 0) > 0 && <Integrazione scheda={scheda} />}
             <Approfondimenti id={id} onApri={(rid, testo) => setPenna({ tipo: "selezione", testo, rid })} />
             {scheda.fonti.length > 0 && (
               <p className="tenue piccolo">
@@ -189,6 +190,25 @@ function Verifiche({ scheda }: { scheda: Scheda }) {
           <div>
             {v.testo}
             {v.fonte && <div className="tenue piccolo">{v.fonte}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Integrazione({ scheda }: { scheda: Scheda }) {
+  const segni = { doppione: "♻️", integrato: "🧩", contrasto: "⚠️" };
+  const nomi = { doppione: "Era ripetuto, ne ho tenuto uno", integrato: "Messi insieme", contrasto: "Non concordano" };
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <h3>Come ho unito i tuoi materiali</h3>
+      {scheda.integrazione!.map((x, i) => (
+        <div key={i} className={`verifica ${x.tipo === "contrasto" ? "verifica-dubbio" : ""}`}>
+          <span>{segni[x.tipo]}</span>
+          <div>
+            <b>{nomi[x.tipo]}.</b> {x.testo}
+            {x.materiali.length > 0 && <div className="tenue piccolo">{x.materiali.join(" · ")}</div>}
           </div>
         </div>
       ))}

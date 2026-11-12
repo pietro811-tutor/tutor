@@ -84,6 +84,7 @@ export interface Scheda {
   domande: Domanda[];
   collegamenti: string[];
   fonti: { materiale: string; dove?: string }[];
+  integrazione?: { tipo: "doppione" | "integrato" | "contrasto"; testo: string; materiali: string[] }[];
   pillola: string; // testo da ascoltare
 }
 

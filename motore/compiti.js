@@ -246,7 +246,7 @@ Dividi tutto in ARGOMENTI DA STUDIARE, come li chiederebbe il professore all'ora
   3 = tra i più chiesti (argomento centrale, il professore ci insiste o dice "questo lo chiedo", compare nelle domande dei colleghi),
   2 = normale, 1 = chiesto raramente (di contorno, citato di passaggio).
   Sii selettivo: il 3 va solo a circa un quarto degli argomenti, l'1 a quelli davvero marginali;
-- "fonti": gli id dei materiali che ne parlano (campo "materiale");
+- "fonti": gli id di TUTTI i materiali che ne parlano, anche se ripetono le stesse cose (poi vengono confrontati e fusi in un'unica scheda);
 - "sintesi": una frase che dica di cosa si tratta;
 - MANTIENI gli "id" degli argomenti già presenti nel programma attuale quando l'argomento è lo stesso;
   per quelli nuovi usa un id breve in minuscolo con trattini (es. "necrosi-coagulativa").
@@ -296,6 +296,16 @@ ${fonti.map((f) => "- " + f).join("\n") || "- (nessun materiale: usa le conoscen
 
 Le trascrizioni delle lezioni sono automatiche: correggi i termini sentiti male, ma NON cambiare il senso di quello che dice il professore.
 
+INTEGRAZIONE DEI MATERIALI (la funzione più importante): lo stesso argomento compare spesso in più materiali (lezioni diverse, sbobine di colleghi,
+PDF rifatti, foto). Prima di scrivere:
+- leggi TUTTE le parti che riguardano l'argomento in OGNI materiale elencato (usa Grep con più parole chiave per ciascuno, anche sinonimi e termini vicini);
+- confronta i passaggi: se dicono la STESSA cosa, tieni UNA sola versione (la più chiara e completa) e scarta l'altra;
+  se si sovrappongono solo in parte, tieni il pezzo comune una volta sola e aggiungi quello che c'è in uno solo;
+  se un materiale ha dettagli che gli altri non hanno, integrali nel punto giusto del discorso;
+- se due materiali si CONTRADDICONO, non scegliere in silenzio: tieni la versione del professore e segnala il contrasto;
+- il "dettaglio" deve essere UN testo unico, ordinato e senza ripetizioni, che contiene tutto quello che sta nei materiali: nessun concetto in meno;
+- compila "integrazione" come resoconto onesto di ciò che hai fatto: per ogni gruppo di passaggi, di che tipo era e da quali materiali veniva.
+
 La scheda segue le 5 tappe del metodo:
 1. "semplice": 3-5 righe per capire SUBITO il concetto, senza paroloni. "analogia": un paragone di vita quotidiana (facoltativo).
 2. "schema": lo scheletro da usare all'orale. Per una malattia/lesione usa le voci: Definizione, Cause (eziologia), Meccanismo (patogenesi),
@@ -317,13 +327,18 @@ Inoltre:
 - "collegamenti": id di altri argomenti collegati, scelti da questa lista:
 ${altri || "(nessuno)"}
 - "fonti": da quali materiali e dove (minuto o pagina).
+- "integrazione": il resoconto della fusione dei materiali: una voce per ogni gruppo di passaggi, con
+  "tipo" = "doppione" (stessa cosa in più materiali: ne hai tenuta una sola versione), "integrato" (materiali diversi si completano: li hai uniti)
+  o "contrasto" (si contraddicono); "testo" = di cosa si tratta e cosa hai fatto, in una o due frasi;
+  "materiali" = gli id dei materiali coinvolti. Se c'è un solo materiale, lascia la lista vuota.
 
 Rispondi SOLO con JSON:
 {"titolo": "...", "semplice": "...", "analogia": "...", "schema": [{"voce": "...", "testo": "..."}], "dettaglio": "...",
  "parole_chiave": [{"termine": "...", "spiegazione": "...", "all_esame": "..."}],
  "verifiche": [{"tipo": "ok|dubbio|integrazione", "testo": "...", "fonte": "..."}],
  "domande": [{"domanda": "...", "risposta": "...", "tipo": "veloce|esame"}],
- "collegamenti": ["..."], "fonti": [{"materiale": "...", "dove": "..."}], "pillola": "..."}`,
+ "collegamenti": ["..."], "fonti": [{"materiale": "...", "dove": "..."}],
+ "integrazione": [{"tipo": "doppione|integrato|contrasto", "testo": "...", "materiali": ["..."]}], "pillola": "..."}`,
     },
     (o) =>
       typeof o.semplice === "string" && Array.isArray(o.schema) && typeof o.dettaglio === "string" && Array.isArray(o.domande) && o.domande.length
@@ -356,6 +371,13 @@ Rispondi SOLO con JSON:
     domande,
     collegamenti: (s.collegamenti ?? []).filter((c) => programma.argomenti.some((a) => a.id === c)),
     fonti: (s.fonti ?? []).map((f) => ({ materiale: titoli[f.materiale] ?? String(f.materiale ?? ""), dove: f.dove })),
+    integrazione: (s.integrazione ?? [])
+      .filter((x) => ["doppione", "integrato", "contrasto"].includes(x.tipo) && x.testo)
+      .map((x) => ({
+        tipo: x.tipo,
+        testo: String(x.testo),
+        materiali: (Array.isArray(x.materiali) ? x.materiali : []).map((m) => titoli[m] ?? String(m)),
+      })),
     pillola: s.pillola ?? "",
   });
 }
