@@ -11,6 +11,8 @@ const VOCI = path.resolve(QUI, "..", "voci");
 const PYTHON_GPU = path.join(VOCI, "ve-gpu", "Scripts", "python.exe");
 const PYTHON_CPU = path.join(VOCI, "ve", "Scripts", "python.exe");
 const PYTHON = fs.existsSync(PYTHON_GPU) ? PYTHON_GPU : PYTHON_CPU;
+const PYTHON_CB = path.join(VOCI, "ve-cb", "Scripts", "python.exe");
+const ESEGUI = (voce) => (voce === "chatterbox" ? { python: PYTHON_CB, script: "genera_cb.py" } : { python: PYTHON, script: "genera.py" });
 const elenco = (d) => (fs.existsSync(d) ? fs.readdirSync(d) : []);
 
 /** Toglie il "trucco" grafico del testo (markdown, frecce) perché la voce lo legga bene. */
@@ -35,7 +37,8 @@ function perLaVoceRighe(t = "") {
     .join("\n[pausa]\n");
 }
 
-export function disponibile() {
+export function disponibile(voce = "") {
+  if (voce === "chatterbox") return fs.existsSync(PYTHON_CB);
   return fs.existsSync(PYTHON) && fs.existsSync(path.join(VOCI, "modelli", "kokoro-v1.0.onnx"));
 }
 
@@ -68,7 +71,8 @@ export function audioMancanti(radice, esame, voce, velocita) {
       lavori.push({ id: s.id + parte.suffisso, aggiornata: s.aggiornata, testo: parte.testo, out: mp3, meta: path.join(dirAudio, `${nome}.json`) });
     }
   }
-  return lavori;
+  const tipo = (l) => (l.id.endsWith("--dettaglio") ? 2 : l.id.endsWith("--schema") ? 1 : 0);
+  return lavori.map((l, i) => ({ l, i })).sort((a, b) => tipo(a.l) - tipo(b.l) || a.i - b.i).map((x) => x.l);
 }
 
 /** Genera gli audio di una lista di lavori. Ritorna quanti ne ha fatti. */
@@ -76,7 +80,8 @@ export function generaAudio(lavori, voce, velocita) {
   return new Promise((ok, no) => {
     const file = path.join(VOCI, "lavori.tmp.json");
     fs.writeFileSync(file, JSON.stringify(lavori.map(({ testo, out }) => ({ testo, out }))), "utf8");
-    const proc = spawn(PYTHON, ["-I", path.join(VOCI, "genera.py"), file, voce, String(velocita)], { cwd: VOCI, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
+    const { python, script } = ESEGUI(voce);
+    const proc = spawn(python, ["-I", path.join(VOCI, script), file, voce, String(velocita)], { cwd: VOCI, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
     let fatti = 0;
     let errori = "";
     proc.stdout.on("data", (d) => {

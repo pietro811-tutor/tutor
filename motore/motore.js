@@ -249,7 +249,7 @@ async function giroAudio() {
   const voci = config.voce?.elenco ?? ["if_sara"]; // si fanno prima tutte le schede con la prima voce, poi con la seconda
   const velocita = config.voce?.velocita ?? 0.8;
   if (config.audio_attivo === false) return log("Audio fermi (audio_attivo: false in config.locale.json).");
-  if (!vociPronte()) return log("Voci non installate (cartella voci): salto gli audio.");
+  if (!vociPronte(voci[0])) return log("Voci non installate (cartella voci): salto gli audio.");
   for (;;) {
     try {
       let voce = voci[0];
@@ -261,7 +261,7 @@ async function giroAudio() {
       }
       if (lavori.length) {
         log(`Audio da fare (${voce}): ${lavori.length}`);
-        const fatti = await generaAudio(lavori.slice(0, 6), voce, velocita);
+        const fatti = await generaAudio(lavori.slice(0, voce === "chatterbox" ? 2 : 6), voce, velocita);
         log(`Audio pronti: ${fatti}`);
         await archivio.pubblica("Audio delle schede");
         continue;
