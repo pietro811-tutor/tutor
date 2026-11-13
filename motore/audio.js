@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { leggiJson, scriviJson, percorsi } from "./compiti.js";
+import { elencoParlato, pianoLezione } from "./lezione.js";
 
 const QUI = path.dirname(fileURLToPath(import.meta.url));
 const VOCI = path.resolve(QUI, "..", "voci");
@@ -44,7 +45,7 @@ export function disponibile(voce = "") {
   return fs.existsSync(PYTHON) && fs.existsSync(path.join(VOCI, "modelli", "kokoro-v1.0.onnx"));
 }
 
-const FRASI_VERSIONE = "frasi-v1";
+const FRASI_VERSIONE = "frasi-v2";
 export const FRASI_FISSE = {
   inizio: "Cominciamo l'interrogazione. Rispondi a voce, come se fossi all'esame. Quando hai finito, tocca il pulsante.",
   bene: "Bene! Hai detto le cose giuste. Ascolta la risposta completa.",
@@ -53,6 +54,11 @@ export const FRASI_FISSE = {
   nonso: "Nessun problema. Ascolta la risposta, così la ricordi.",
   prossima: "Passiamo alla prossima domanda.",
   fine: "Per oggi abbiamo finito. Bel lavoro! Guarda il riepilogo.",
+  "l-inizio": "Cominciamo la lezione. Ti spiego un pezzo alla volta, poi tocca a te ripetere.",
+  "l-bene": "Perfetto, hai ripetuto bene i concetti. Andiamo avanti.",
+  "l-quasi": "Quasi. Ti manca qualche concetto: se vuoi riascolta il pezzo, oppure andiamo avanti.",
+  "l-rivediamo": "Rivediamo questo pezzo: riascoltalo con calma, poi riprova a ripeterlo.",
+  "l-fine": "Abbiamo finito la lezione. Bravo! Adesso puoi provare l'interrogazione su questo argomento.",
 };
 
 /** Le parti di una scheda che si possono leggere: [{ suffisso, testo }]. */
@@ -60,6 +66,14 @@ function partiDellaScheda(s) {
   const parti = [];
   const titolo = perLaVoce(s.titolo);
   // niente audio del riassunto ("pillola"): lo studente non lo vuole
+  // la lezione guidata: un audio per pezzo (spiegazione + "ora ripeti tu" con i concetti)
+  for (const p of pianoLezione(s)) {
+    const concetti = p.concetti.length ? ` I concetti da ricordare sono: ${elencoParlato(p.concetti.map((c) => perLaVoce(c)))}.` : "";
+    parti.push({
+      suffisso: `--l-${p.n}`,
+      testo: `${perLaVoce(p.titolo.replace(" (continua)", ""))}.${p.titolo.endsWith("(continua)") ? " Continuiamo." : ""}\n[pausa]\n${perLaVoceRighe(p.testo)}\n[pausa]\nOra tocca a te: ripeti con parole tue.${concetti}`,
+    });
+  }
   // le domande dell'interrogazione: una per la domanda e una per la risposta giusta
   for (const d of s.domande ?? []) {
     if (d.domanda) parti.push({ suffisso: `--q-${d.id}`, testo: perLaVoce(d.domanda) });
@@ -89,7 +103,7 @@ export function audioMancanti(radice, esame, voce, velocita) {
       lavori.push({ id: s.id + parte.suffisso, aggiornata: s.aggiornata, testo: parte.testo, out: mp3, meta: path.join(dirAudio, `${nome}.json`) });
     }
   }
-  const tipo = (l) => (l.id.endsWith("--dettaglio") ? 2 : l.id.endsWith("--schema") ? 1 : 0); // prima le cose corte (domande, frasi), poi gli schemi, poi i dettagli
+  const tipo = (l) => (l.id.endsWith("--dettaglio") ? 3 : l.id.includes("--l-") ? 2 : l.id.endsWith("--schema") ? 1 : 0); // prima le cose corte (domande, frasi), poi gli schemi, poi i dettagli
   // le frasi fisse di Virgilio nell'interrogazione (una volta sola per voce)
   for (const [nome, testo] of Object.entries(FRASI_FISSE)) {
     const id = `_frase-${nome}`;
@@ -127,4 +141,20 @@ export function generaAudio(lavori, voce, velocita) {
       else ok(fatti);
     });
   });
+}
+
+/** Scrive esami/<materia>/lezioni/<scheda>.json con il piano della lezione, se la scheda e' nuova o cambiata. */
+export function scriviLezioni(radice, esame) {
+  const p = percorsi(radice, esame.slug);
+  const dir = path.join(radice, "esami", esame.slug, "lezioni");
+  let scritte = 0;
+  for (const f of elenco(p.schede).filter((f) => f.endsWith(".json"))) {
+    const s = leggiJson(path.join(p.schede, f));
+    if (!s?.id) continue;
+    const file = path.join(dir, `${s.id}.json`);
+    if (leggiJson(file)?.aggiornata === s.aggiornata) continue;
+    scriviJson(file, { id: s.id, aggiornata: s.aggiornata, passi: pianoLezione(s) });
+    scritte++;
+  }
+  return scritte;
 }

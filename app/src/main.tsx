@@ -14,6 +14,7 @@ import Ripasso from "./schermate/Ripasso";
 import Carica from "./schermate/Carica";
 import Materie from "./schermate/Materie";
 import Interrogazione from "./schermate/Interrogazione";
+import Lezione from "./schermate/Lezione";
 import Impostazioni from "./schermate/Impostazioni";
 
 function Navigazione() {
@@ -94,6 +95,7 @@ function App() {
           <Route path="/carica" element={<Carica />} />
           <Route path="/materie" element={<Materie />} />
           <Route path="/interrogazione" element={<Interrogazione />} />
+          <Route path="/lezione/:id" element={<Lezione />} />
           <Route path="/impostazioni" element={<Impostazioni onEsci={() => setConfig(null)} />} />
         </Routes>
         <Navigazione />

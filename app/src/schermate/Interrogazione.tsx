@@ -38,7 +38,7 @@ export default function Interrogazione() {
   const [params] = useSearchParams();
   const gruppi = (progressi.gruppi ?? []).filter((g) => g.esame === esame?.slug);
   const [fase, setFase] = useState<Fase>("scelta");
-  const [argomento, setArgomento] = useState(params.get("gruppo") ? `gruppo:${params.get("gruppo")}` : "tutto");
+  const [argomento, setArgomento] = useState(params.get("gruppo") ? `gruppo:${params.get("gruppo")}` : (params.get("argomento") ?? "tutto"));
   const [quante, setQuante] = useState(10);
   const [soloEsame, setSoloEsame] = useState(false);
   const [coda, setCoda] = useState<Voce[]>([]);

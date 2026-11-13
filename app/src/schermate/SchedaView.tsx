@@ -16,7 +16,7 @@ type Penna =
 export default function SchedaView() {
   const { id = "" } = useParams();
   const naviga = useNavigate();
-  const { schede, programma, progressi, aggiornaProgressi } = useDati();
+  const { schede, programma, progressi, aggiornaProgressi, lezioni } = useDati();
   const scheda = schede[id];
   const argomento = programma?.argomenti.find((a) => a.id === id);
   const [tappa, setTappa] = useState(1);
@@ -80,6 +80,11 @@ export default function SchedaView() {
         <Link to="/programma" className="indietro">
           {Icone.indietro} Programma
         </Link>
+        {lezioni[id]?.passi.length ? (
+          <Link to={`/lezione/${id}`} className="btn btn-terra btn-piccolo">
+            🎓 Lezione con Virgilio
+          </Link>
+        ) : null}
       </div>
       <h1>{scheda.titolo}</h1>
       {argomento && <Stelle n={argomento.importanza} />}

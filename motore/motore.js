@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { creaArchivio } from "./archivio.js";
 import { log } from "./log.js";
-import { audioMancanti, disponibile as vociPronte, generaAudio } from "./audio.js";
+import { audioMancanti, disponibile as vociPronte, generaAudio, scriviLezioni } from "./audio.js";
 import {
   costruisciProgramma,
   costruisciScheda,
@@ -252,6 +252,7 @@ async function giroAudio() {
   if (!vociPronte(voci[0])) return log("Voci non installate (cartella voci): salto gli audio.");
   for (;;) {
     try {
+      if (esami().map((e) => scriviLezioni(radice, e)).some((n) => n > 0)) await archivio.pubblica("Piani delle lezioni");
       let voce = voci[0];
       let lavori = [];
       for (const v of voci) {

@@ -3,6 +3,7 @@ import { ArchivioGitHub, ArchivioLocale, fileInBase64, testoInBase64, type Archi
 import { domandaConGemini, leggiChiaveGemini, pennaConGemini, valutaConGemini } from "./gemini";
 import type {
   Esame,
+  Lezione,
   StatoMotore,
   MaterialeMeta,
   Programma,
@@ -97,6 +98,7 @@ interface Dati {
   risposte: Record<string, Risposta>;
   progressi: Progressi;
   audio: Record<string, Record<string, string>>; // audio pronti: scheda -> voce -> versione
+  lezioni: Record<string, Lezione>; // i piani delle lezioni guidate
 }
 
 interface Azioni {
@@ -135,6 +137,7 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     materiali: [],
     risposte: {},
     audio: {},
+    lezioni: {},
     progressi: leggiLocale<Progressi>(CHIAVE_PROGRESSI) ?? progressiVuoti(),
   }));
   const progressiRef = useRef(dati.progressi);
@@ -206,6 +209,12 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         if (s) schede[s.id] = s;
       }
 
+      const lezioni: Record<string, Lezione> = {};
+      for (const p of percorsi.filter((p) => p.startsWith(`${base}/lezioni/`) && p.endsWith(".json"))) {
+        const l = await leggiJson<Lezione>(p);
+        if (l?.id) lezioni[l.id] = l;
+      }
+
       const audio: Record<string, Record<string, string>> = {};
       for (const v of albero.current)
         if (v.path.startsWith(`${base}/audio/`) && v.path.endsWith(".mp3")) {
@@ -257,6 +266,7 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         programma: programma ?? undefined,
         schede,
         audio,
+        lezioni,
         materiali,
         risposte,
         progressi: progressiRef.current,

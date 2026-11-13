@@ -155,6 +155,13 @@ export interface GruppoArgomenti {
   argomenti: string[]; // id degli argomenti
 }
 
+export interface Lezione {
+  // M  esami/<slug>/lezioni/<argomento>.json: il piano della lezione guidata
+  id: string;
+  aggiornata: string;
+  passi: { n: number; titolo: string; testo: string; concetti: string[] }[];
+}
+
 export interface Progressi {
   // T  progressi.json
   aggiornato: string;
