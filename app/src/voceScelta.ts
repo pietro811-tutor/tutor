@@ -14,7 +14,10 @@ const predefinita: ScelteVoce = { voce: "chatterbox", velocita: 1, volume: 1, ti
 export function leggiScelteVoce(): ScelteVoce {
   try {
     const v = JSON.parse(localStorage.getItem(CHIAVE) ?? "null") as Partial<ScelteVoce> | null;
-    return { ...predefinita, ...(v ?? {}) };
+    const scelte = { ...predefinita, ...(v ?? {}) };
+    // una voce che non esiste piu' (Sara, Nicola) torna a quella di Virgilio
+    if (!VOCI.some((x) => x.id === scelte.voce)) scelte.voce = predefinita.voce;
+    return scelte;
   } catch {
     return predefinita;
   }
