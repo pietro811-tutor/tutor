@@ -5,7 +5,7 @@ import { Attesa, Icone, TestoRicco, Virgilio } from "../componenti";
 import { ascolta, ascoltoDisponibile, leggi, type Ascolto } from "../voce";
 import { avviaAudio, leggiScelteVoce, type ControlloAudio } from "../voceScelta";
 import { controlloVeloce, type EsitoVeloce } from "../controlloVeloce";
-import { cancellaEvidenza, evidenziaFrase, fraseAl } from "../evidenzia";
+import { cancellaEvidenza, evidenziaFrase, fraseAl, fraseAlPunto, indiceFraseAl, type FraseTempo } from "../evidenzia";
 
 type Fase = "inizio" | "ascolta" | "ripeti" | "esito" | "fine";
 const SEGNO = { bene: "✅", quasi: "🟡", rivediamo: "❌" } as const;
@@ -49,6 +49,9 @@ export default function Lezione() {
   const controllo = useRef<ControlloAudio | null>(null);
   const fermaTelefono = useRef<(() => void) | null>(null);
   const microfono = useRef<Ascolto | null>(null);
+  const tempiPezzo = useRef<FraseTempo[] | null>(null); // quando comincia ogni frase del pezzo in corso
+  const fraseCorrente = useRef(0);
+  const soloFinoA = useRef<number | null>(null); // "ripeti questa frase": si ferma all'inizio della frase dopo
   const salvato = pezzoSalvato(id);
 
   const passo = passi[i];
@@ -112,7 +115,7 @@ export default function Lezione() {
   }
 
   /** Spiega il pezzo n (da 0): audio con la voce buona, evidenziando la frase che sta leggendo. */
-  async function faiPezzo(n: number, conIntro = false) {
+  async function faiPezzo(n: number, conIntro = false, da?: number) {
     ferma();
     const mio = giro.current;
     const p = passi[n];
@@ -120,6 +123,9 @@ export default function Lezione() {
     setI(n);
     setTesto("");
     setSenzaVoce(false);
+    tempiPezzo.current = null;
+    soloFinoA.current = null;
+    fraseCorrente.current = 0;
     setFase("ascolta");
     window.scrollTo({ top: 0 });
     if (conIntro) await dici("_frase-l-inizio", "Cominciamo la lezione. Ti spiego un pezzo alla volta, poi tocca a te ripetere.", mio);
@@ -136,17 +142,25 @@ export default function Lezione() {
       if (url) {
         const radice = document.querySelector("[data-leggibile]");
         let ultima: string | null = null;
+        tempiPezzo.current = tempi?.length ? tempi : null;
         const alTempo =
           tempi?.length && radice
             ? (t: number) => {
+                fraseCorrente.current = Math.max(0, indiceFraseAl(tempi, t));
                 const f = fraseAl(tempi, t);
                 if (f !== ultima) {
                   ultima = f;
                   evidenziaFrase(radice, f);
                 }
+                // "ripeti questa frase": appena comincia la frase dopo, mi fermo
+                if (soloFinoA.current != null && t >= soloFinoA.current) {
+                  soloFinoA.current = null;
+                  controllo.current?.pausa();
+                  setInPausa(true);
+                }
               }
             : undefined;
-        const c = await avviaAudio(url, scelte, () => entraInRipeti(mio), { alTempo });
+        const c = await avviaAudio(url, scelte, () => entraInRipeti(mio), { alTempo, da });
         if (mio !== giro.current) c.ferma();
         else controllo.current = c;
         return;
@@ -171,6 +185,42 @@ export default function Lezione() {
     if (inPausa) controllo.current.riprendi();
     else controllo.current.pausa();
     setInPausa(!inPausa);
+  }
+
+  /** Salta alla frase prima (-1) o dopo (+1). */
+  function fraseVicina(delta: number) {
+    const t = tempiPezzo.current;
+    if (!t || !controllo.current) return;
+    const k = Math.min(t.length - 1, Math.max(0, fraseCorrente.current + delta));
+    soloFinoA.current = null;
+    controllo.current.vaiA(t[k].t);
+    controllo.current.riprendi();
+    setInPausa(false);
+  }
+
+  /** Ripete solo la frase che stai ascoltando, poi si ferma. */
+  function ripetiFrase() {
+    const t = tempiPezzo.current;
+    if (!t || !controllo.current) return;
+    const k = fraseCorrente.current;
+    soloFinoA.current = t[k + 1]?.t ?? null;
+    controllo.current.vaiA(t[k].t);
+    controllo.current.riprendi();
+    setInPausa(false);
+  }
+
+  /** Tocchi una frase nel testo: ripartiamo da li'. */
+  function tocca(e: React.MouseEvent<HTMLDivElement>) {
+    const t = tempiPezzo.current;
+    if (!t || (document.getSelection()?.toString().length ?? 0) > 0) return;
+    const k = fraseAlPunto(e.currentTarget, t, e.clientX, e.clientY);
+    if (k < 0) return;
+    soloFinoA.current = null;
+    if (fase === "ascolta" && controllo.current) {
+      controllo.current.vaiA(t[k].t);
+      controllo.current.riprendi();
+      setInPausa(false);
+    } else void faiPezzo(i, false, t[k].t); // l'audio era finito: lo riapro da quel punto
   }
 
   async function haiFinito() {
@@ -308,10 +358,11 @@ export default function Lezione() {
           style={{ background: "none", border: 0 }}
           onClick={() => {
             ferma();
+            salvaPezzo(id, i); // la prossima volta ripartiamo da questo pezzo
             setFase("inizio");
           }}
         >
-          {Icone.indietro} Esci
+          {Icone.indietro} Pausa ed esci
         </button>
         <span className="tenue piccolo">
           Pezzo {i + 1} di {passi.length}
@@ -324,7 +375,7 @@ export default function Lezione() {
       </div>
       <h2 style={{ marginTop: 4 }}>{passo.titolo}</h2>
 
-      <div className="carta" key={passo.n} data-leggibile="">
+      <div className="carta" key={passo.n} data-leggibile="" onClick={tocca}>
         <TestoRicco testo={passo.testo} />
       </div>
 
@@ -348,14 +399,34 @@ export default function Lezione() {
       {fase === "ascolta" && !senzaVoce && (
         <div className="colonna">
           <div className="riga" style={{ gap: 8 }}>
+            <button className="btn btn-tenue" aria-label="Frase precedente" onClick={() => fraseVicina(-1)} disabled={carico || !controllo.current}>
+              ⏮
+            </button>
             <button className="btn btn-largo" onClick={mettiInPausa} disabled={carico || !controllo.current}>
               {carico ? "Un attimo…" : inPausa ? "▶ Riprendi" : "⏸ Pausa"}
             </button>
-            <button className="btn btn-tenue btn-largo" onClick={() => entraInRipeti(giro.current)}>
-              Salta ⏭
+            <button className="btn btn-tenue" aria-label="Frase successiva" onClick={() => fraseVicina(1)} disabled={carico || !controllo.current}>
+              ⏭
             </button>
           </div>
+          <div className="riga" style={{ gap: 8 }}>
+            <button className="btn btn-tenue btn-largo btn-piccolo" onClick={ripetiFrase} disabled={carico || !controllo.current}>
+              ↺ Ripeti questa frase
+            </button>
+            <button className="btn btn-tenue btn-largo btn-piccolo" onClick={() => entraInRipeti(giro.current)}>
+              Tocca a me ripetere
+            </button>
+          </div>
+          <p className="tenue piccolo" style={{ margin: "2px 0 0", textAlign: "center" }}>
+            Tocca una frase nel testo per riascoltarla da lì.
+          </p>
         </div>
+      )}
+
+      {fase !== "ascolta" && tempiPezzo.current && (
+        <p className="tenue piccolo" style={{ margin: "-4px 0 8px", textAlign: "center" }}>
+          Vuoi riascoltare una parte? Tocca la frase nel testo qui sopra.
+        </p>
       )}
 
       {fase !== "ascolta" && passo.concetti.length > 0 && (

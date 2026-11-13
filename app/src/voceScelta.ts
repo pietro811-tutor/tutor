@@ -35,6 +35,8 @@ export interface ControlloAudio {
   ferma(): void; // si ferma e ricorda dove eri
   pausa(): void;
   riprendi(): void;
+  vaiA(secondi: number): void; // salta a un punto dell'audio
+  ora(): number; // a che secondo sei
 }
 
 const chiavePos = (k: string) => `tutor:pos:${k}`;
@@ -68,18 +70,19 @@ export async function avviaAudio(
   url: string,
   scelte: ScelteVoce,
   alTermine: () => void,
-  opzioni: { massimoMs?: number; chiave?: string; alTempo?: (secondi: number) => void } = {},
+  opzioni: { massimoMs?: number; chiave?: string; alTempo?: (secondi: number) => void; da?: number } = {},
 ): Promise<ControlloAudio> {
-  const { massimoMs, chiave, alTempo } = opzioni;
+  const { massimoMs, chiave, alTempo, da } = opzioni;
   const a = new Audio(url);
   a.playbackRate = scelte.velocita;
   a.volume = scelte.volume > 1 || scelte.timbro !== 0 ? 1 : scelte.volume;
-  const partenza = chiave ? posizioneSalvata(chiave) : 0;
+  // "da" = punto deciso da te; altrimenti, con una chiave, il punto in cui eri rimasto
+  const partenza = da ?? (chiave ? posizioneSalvata(chiave) : 0);
   if (partenza > 0)
     a.addEventListener(
       "loadedmetadata",
       () => {
-        if (partenza < a.duration - 4) a.currentTime = partenza;
+        if (da != null ? partenza < a.duration : partenza < a.duration - 4) a.currentTime = partenza;
       },
       { once: true },
     );
@@ -150,5 +153,9 @@ export async function avviaAudio(
       void contesto?.resume().catch(() => {});
       void a.play().catch(() => {});
     },
+    vaiA: (secondi) => {
+      a.currentTime = Math.max(0, secondi);
+    },
+    ora: () => a.currentTime,
   };
 }

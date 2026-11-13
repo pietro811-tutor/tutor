@@ -76,12 +76,57 @@ export function evidenziaFrase(radice: Element, frase: string | null): boolean {
   return true;
 }
 
-/** La frase che comincia prima (o al) secondo t. */
-export function fraseAl(tempi: FraseTempo[], t: number): string | null {
+/** Quale frase (indice in `tempi`) c'e' nel punto del testo che hai toccato? */
+export function fraseAlPunto(radice: Element, tempi: FraseTempo[], x: number, y: number): number {
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  let nodo: Node | null = null;
+  let offset = 0;
+  const pos = doc.caretPositionFromPoint?.(x, y);
+  if (pos) {
+    nodo = pos.offsetNode;
+    offset = pos.offset;
+  } else {
+    const r = doc.caretRangeFromPoint?.(x, y);
+    if (r) {
+      nodo = r.startContainer;
+      offset = r.startOffset;
+    }
+  }
+  if (!nodo || !radice.contains(nodo)) return -1;
+  const { norm, mappa } = indice(radice);
+  // il carattere toccato, nell'elenco delle lettere del testo
+  const toccato = mappa.findIndex((m) => m.nodo === nodo && m.offset >= offset);
+  if (toccato < 0) return -1;
+  // dove comincia ogni frase nel testo (si cerca sempre in avanti)
+  let da = 0;
+  let trovata = -1;
+  for (let k = 0; k < tempi.length; k++) {
+    const f = normalizza(tempi[k].testo);
+    if (f.length < 8) continue;
+    const inizio = norm.indexOf(f.slice(0, 24), da);
+    if (inizio < 0) continue;
+    if (inizio <= toccato) trovata = k;
+    else break;
+    da = inizio + 1;
+  }
+  return trovata;
+}
+
+/** L'indice della frase che comincia prima (o al) secondo t; -1 se non e' ancora cominciata nessuna. */
+export function indiceFraseAl(tempi: FraseTempo[], t: number): number {
   let trovata = -1;
   for (let i = 0; i < tempi.length; i++) {
     if (tempi[i].t <= t + 0.15) trovata = i;
     else break;
   }
-  return trovata >= 0 ? tempi[trovata].testo : null;
+  return trovata;
+}
+
+/** La frase che comincia prima (o al) secondo t. */
+export function fraseAl(tempi: FraseTempo[], t: number): string | null {
+  const k = indiceFraseAl(tempi, t);
+  return k >= 0 ? tempi[k].testo : null;
 }
