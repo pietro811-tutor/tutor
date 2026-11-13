@@ -1,5 +1,5 @@
 // La voce che hai scelto per gli audio (la velocità si regola qui, subito, senza rifare gli audio).
-export const VOCI = [{ id: "chatterbox", nome: "Voce E" }] as const;
+export const VOCI = [{ id: "elsa", nome: "Elsa" }] as const;
 
 export interface ScelteVoce {
   voce: string;
@@ -9,7 +9,7 @@ export interface ScelteVoce {
 }
 
 const CHIAVE = "tutor:voce-audio";
-const predefinita: ScelteVoce = { voce: "chatterbox", velocita: 1, volume: 1, timbro: 0 };
+const predefinita: ScelteVoce = { voce: "elsa", velocita: 1, volume: 1, timbro: 0 };
 
 export function leggiScelteVoce(): ScelteVoce {
   try {

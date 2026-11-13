@@ -10,5 +10,5 @@
   "whisper_python": "python",
   "trascrivi": "../trascrizione/trascrivi.py",
   "intervallo_secondi": 5,
-  "voce": { "elenco": ["chatterbox"], "velocita": 1 }
+  "voce": { "elenco": ["elsa"], "velocita": 1 }
 }

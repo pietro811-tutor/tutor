@@ -12,7 +12,8 @@ const PYTHON_GPU = path.join(VOCI, "ve-gpu", "Scripts", "python.exe");
 const PYTHON_CPU = path.join(VOCI, "ve", "Scripts", "python.exe");
 const PYTHON = fs.existsSync(PYTHON_GPU) ? PYTHON_GPU : PYTHON_CPU;
 const PYTHON_CB = path.join(VOCI, "ve-cb", "Scripts", "python.exe");
-const ESEGUI = (voce) => (voce === "chatterbox" ? { python: PYTHON_CB, script: "genera_cb.py" } : { python: PYTHON, script: "genera.py" });
+const PYTHON_EDGE = path.join(VOCI, "ve-edge", "Scripts", "python.exe");
+const ESEGUI = (voce) => (voce === "elsa" ? { python: PYTHON_EDGE, script: "genera_edge.py" } : voce === "chatterbox" ? { python: PYTHON_CB, script: "genera_cb.py" } : { python: PYTHON, script: "genera.py" });
 const elenco = (d) => (fs.existsSync(d) ? fs.readdirSync(d) : []);
 
 /** Toglie il "trucco" grafico del testo (markdown, frecce) perché la voce lo legga bene. */
@@ -38,6 +39,7 @@ function perLaVoceRighe(t = "") {
 }
 
 export function disponibile(voce = "") {
+  if (voce === "elsa") return fs.existsSync(PYTHON_EDGE);
   if (voce === "chatterbox") return fs.existsSync(PYTHON_CB);
   return fs.existsSync(PYTHON) && fs.existsSync(path.join(VOCI, "modelli", "kokoro-v1.0.onnx"));
 }
