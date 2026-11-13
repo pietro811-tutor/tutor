@@ -21,6 +21,7 @@ export interface Config {
 }
 
 import { salvaCopia } from "./copiaChiave";
+import type { FraseTempo } from "./evidenzia";
 
 const CHIAVE_CONFIG = "tutor:config";
 const CHIAVE_CACHE = "tutor:cache";
@@ -101,6 +102,8 @@ interface Dati {
 interface Azioni {
   /** L'audio della scheda (scaricato una volta, poi resta sul telefono). Ritorna un indirizzo da dare a <audio>. */
   caricaAudio(id: string, voce: string): Promise<string | null>;
+  /** Quando comincia ogni frase dell'audio (per evidenziarla mentre la voce la legge). */
+  caricaTempi(id: string, voce: string): Promise<FraseTempo[] | null>;
   sincronizza(): Promise<void>;
   aggiornaProgressi(fn: (p: Progressi) => void): void;
   inviaRichiesta(tipo: TipoRichiesta, input: Record<string, unknown>, extra?: { argomento?: string; testo?: string }): Promise<string>;
@@ -492,9 +495,14 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     [archivio, dati.audio, dati.esame],
   );
 
+  const caricaTempi = useCallback<Azioni["caricaTempi"]>(
+    async (id, voce) => (dati.esame ? await leggiJson<FraseTempo[]>(`esami/${dati.esame.slug}/audio/${id}.${voce}.tempi.json`).catch(() => null) : null),
+    [leggiJson, dati.esame],
+  );
+
   const valore = useMemo(
-    () => ({ ...dati, programma: programmaTuo, caricaAudio, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
-    [dati, programmaTuo, caricaAudio, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
+    () => ({ ...dati, programma: programmaTuo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
+    [dati, programmaTuo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
   );
   return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
 }

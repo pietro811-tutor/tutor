@@ -100,7 +100,7 @@ export default function SchedaView() {
         ))}
       </div>
 
-      <div ref={contenuto}>
+      <div ref={contenuto} data-leggibile="">
         {tappa === 1 && (
           <>
             <Virgilio>

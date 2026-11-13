@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDati } from "./stato";
+import { cancellaEvidenza, evidenziaFrase, fraseAl } from "./evidenzia";
 import { avviaAudio, dimenticaPosizione, leggiScelteVoce, posizioneSalvata, type ControlloAudio } from "./voceScelta";
 import type { ParolaChiave } from "./tipi";
 import { leggi, type Brano } from "./voce";
@@ -202,7 +203,7 @@ export const Icone = {
  * Con l'audio buono c'e' la pausa vera: riprendi da dove eri, anche se esci e torni.
  */
 export function BottoneLeggi({ brani, etichetta = "Leggimelo", audioId }: { brani: () => Brano[]; etichetta?: string; audioId?: string }) {
-  const { audio, caricaAudio } = useDati();
+  const { audio, caricaAudio, caricaTempi } = useDati();
   const [fase, setFase] = useState<"fermo" | "carico" | "suona" | "pausa">("fermo");
   const [daRiprendere, setDaRiprendere] = useState(false);
   const controllo = useRef<ControlloAudio | null>(null);
@@ -222,6 +223,7 @@ export function BottoneLeggi({ brani, etichetta = "Leggimelo", audioId }: { bran
     () => () => {
       controllo.current?.ferma();
       fermaVoceTelefono.current?.();
+      cancellaEvidenza();
     },
     [],
   );
@@ -230,6 +232,7 @@ export function BottoneLeggi({ brani, etichetta = "Leggimelo", audioId }: { bran
   const alTermine = () => {
     controllo.current = null;
     fermaVoceTelefono.current = null;
+    cancellaEvidenza();
     setFase("fermo");
   };
 
@@ -257,7 +260,21 @@ export function BottoneLeggi({ brani, etichetta = "Leggimelo", audioId }: { bran
       setFase("carico");
       const url = await caricaAudio(audioId, voce);
       if (url) {
-        controllo.current = await avviaAudio(url, scelte, alTermine, { chiave: chiaveAudio(voce) });
+        // se il PC ha annotato le frasi, evidenzio nel testo quella che si sta leggendo
+        const tempi = await caricaTempi(audioId, voce);
+        const radice = document.querySelector("[data-leggibile]");
+        let ultima: string | null = null;
+        const alTempo =
+          tempi?.length && radice
+            ? (t: number) => {
+                const f = fraseAl(tempi, t);
+                if (f !== ultima) {
+                  ultima = f;
+                  evidenziaFrase(radice, f);
+                }
+              }
+            : undefined;
+        controllo.current = await avviaAudio(url, scelte, alTermine, { chiave: chiaveAudio(voce), alTempo });
         setFase("suona");
         return;
       }

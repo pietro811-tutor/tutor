@@ -64,7 +64,7 @@ export function audioMancanti(radice, esame, voce, velocita) {
       const nome = `${s.id}${parte.suffisso}.${voce}`;
       const meta = leggiJson(path.join(dirAudio, `${nome}.json`));
       const mp3 = path.join(dirAudio, `${nome}.mp3`);
-      if (meta?.aggiornata === s.aggiornata && meta?.voce === voce && meta?.velocita === velocita && fs.existsSync(mp3)) continue;
+      if (meta?.aggiornata === s.aggiornata && meta?.voce === voce && meta?.velocita === velocita && fs.existsSync(mp3) && fs.existsSync(mp3.replace(/.mp3$/, ".tempi.json"))) continue;
       lavori.push({ id: s.id + parte.suffisso, aggiornata: s.aggiornata, testo: parte.testo, out: mp3, meta: path.join(dirAudio, `${nome}.json`) });
     }
   }

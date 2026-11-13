@@ -628,3 +628,9 @@ label {
   border-color: var(--verde);
   box-shadow: 0 0 0 1px var(--verde) inset;
 }
+
+/* la frase che la voce sta leggendo */
+::highlight(lettura) {
+  background-color: rgba(127, 176, 138, 0.38);
+  color: inherit;
+}

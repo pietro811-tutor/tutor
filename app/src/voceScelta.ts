@@ -68,9 +68,9 @@ export async function avviaAudio(
   url: string,
   scelte: ScelteVoce,
   alTermine: () => void,
-  opzioni: { massimoMs?: number; chiave?: string } = {},
+  opzioni: { massimoMs?: number; chiave?: string; alTempo?: (secondi: number) => void } = {},
 ): Promise<ControlloAudio> {
-  const { massimoMs, chiave } = opzioni;
+  const { massimoMs, chiave, alTempo } = opzioni;
   const a = new Audio(url);
   a.playbackRate = scelte.velocita;
   a.volume = scelte.volume > 1 || scelte.timbro !== 0 ? 1 : scelte.volume;
@@ -118,6 +118,7 @@ export async function avviaAudio(
   // ogni 5 secondi ricordo a che punto sei, anche se chiudi l'app di colpo
   let ultimoSalvato = 0;
   a.addEventListener("timeupdate", () => {
+    alTempo?.(a.currentTime);
     if (chiave && a.currentTime - ultimoSalvato > 5) {
       ultimoSalvato = a.currentTime;
       salvaPosizione(chiave, a.currentTime);
