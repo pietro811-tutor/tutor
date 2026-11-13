@@ -230,6 +230,23 @@ function CartaMotore() {
   const { motore, inPausa, impostaPausa } = useDati();
   const [errore, setErrore] = useState("");
   const [lavoro, setLavoro] = useState(false);
+  const [quante, setQuante] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem("tutor:limite-schede");
+      return v === null ? 2 : Number(v);
+    } catch {
+      return 2;
+    }
+  });
+  const scegliQuante = (n: number) => {
+    setQuante(n);
+    try {
+      localStorage.setItem("tutor:limite-schede", String(n));
+    } catch {
+      /* pazienza */
+    }
+  };
+  const fermoPerLimite = motore?.stato === "pausa" && motore.cosa === "limite_schede";
   const vivo = motore && Date.now() - new Date(motore.aggiornato).getTime() < 15 * 60000;
 
   let titolo = "Il PC non risponde";
@@ -240,6 +257,9 @@ function CartaMotore() {
   } else if (inPausa) {
     titolo = "In pausa";
     dettaglio = "Quando il PC si accende resta fermo finché non premi Riprendi.";
+  } else if (vivo && fermoPerLimite) {
+    titolo = "Si è fermato da solo";
+    dettaglio = "Ha scritto le schede che gli avevi chiesto. Quando vuoi, scegli quante altre farne e premi Riprendi.";
   } else if (vivo && motore) {
     if (motore.stato === "lavora") {
       titolo = "Al lavoro";
@@ -258,7 +278,8 @@ function CartaMotore() {
     setErrore("");
     setLavoro(true);
     try {
-      await impostaPausa(!inPausa);
+      // quando riprende (o riparte dopo uno stop per limite) dice quante schede scrivere; 0 = tutte
+      await impostaPausa(inPausa || fermoPerLimite ? false : true, inPausa || fermoPerLimite ? quante : undefined);
     } catch {
       setErrore("Non riesco a salvarlo. Controlla la connessione.");
     } finally {
@@ -274,9 +295,26 @@ function CartaMotore() {
       <Avanzamento attivo={!!vivo && !inPausa && motore?.stato === "lavora"} />
       <div style={{ height: 10 }} />
       {errore && <div className="avviso" style={{ marginBottom: 10 }}>{errore}</div>}
-      <button className={`btn btn-largo ${inPausa ? "" : "btn-bordo"}`} disabled={lavoro} onClick={cambia}>
-        {inPausa ? "▶️ Riprendi il lavoro" : "⏸️ Metti in pausa"}
+      {(inPausa || fermoPerLimite) && (
+        <div style={{ marginBottom: 10 }}>
+          <div className="etichetta">Quante schede scrivo prima di fermarmi?</div>
+          <div className="riga" style={{ gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+            {[1, 2, 5, 10, 0].map((n) => (
+              <button key={n} className={`btn btn-piccolo ${quante === n ? "" : "btn-tenue"}`} onClick={() => scegliQuante(n)}>
+                {n === 0 ? "Tutte" : n}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <button className={`btn btn-largo ${inPausa || fermoPerLimite ? "" : "btn-bordo"}`} disabled={lavoro} onClick={cambia}>
+        {inPausa || fermoPerLimite ? (quante > 0 ? `▶️ Riprendi: ${quante} ${quante === 1 ? "scheda" : "schede"}` : "▶️ Riprendi il lavoro") : "⏸️ Metti in pausa"}
       </button>
+      {!inPausa && !fermoPerLimite && motore?.schede_rimaste !== undefined && (
+        <p className="tenue piccolo" style={{ margin: "8px 0 0" }}>
+          Si ferma da solo dopo {motore.schede_rimaste === 1 ? "questa scheda" : `altre ${motore.schede_rimaste} schede`}.
+        </p>
+      )}
     </div>
   );
 }

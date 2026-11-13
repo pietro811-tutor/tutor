@@ -121,7 +121,8 @@ interface Azioni {
   /** Cambia l'elenco delle domande ricorrenti e lo salva nell'archivio. */
   aggiornaRicorrenti(fn: (lista: DomandaRicorrente[]) => DomandaRicorrente[]): Promise<void>;
   scegliMateria(slug: string): void;
-  impostaPausa(attiva: boolean): Promise<void>;
+  /** Pausa o ripresa. Riprendendo puoi dire quante schede scrivere prima di fermarsi da solo (senza limite: tutte). */
+  impostaPausa(attiva: boolean, limiteSchede?: number): Promise<void>;
   cambiaStelle(argomento: string, stelle: 1 | 2 | 3 | null): void; // null = torna a quelle di Virgilio
   creaMateria(nome: string, tipo: Esame["tipo"], data?: string): Promise<string>;
   aspettaRisposta(id: string, ogniMs?: number): () => void;
@@ -450,12 +451,12 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   );
 
   const impostaPausa = useCallback<Azioni["impostaPausa"]>(
-    async (attiva) => {
+    async (attiva, limiteSchede) => {
       if (!archivio) return;
       const prima = dati.inPausa;
       setDati((d) => ({ ...d, inPausa: attiva }));
       try {
-        await archivio.scrivi("pausa.json", testoInBase64(JSON.stringify({ attiva, aggiornata: new Date().toISOString() }, null, 1)), attiva ? "Pausa" : "Si riprende");
+        await archivio.scrivi("pausa.json", testoInBase64(JSON.stringify({ attiva, aggiornata: new Date().toISOString(), ...(!attiva && limiteSchede && limiteSchede > 0 ? { limite_schede: limiteSchede } : {}) }, null, 1)), attiva ? "Pausa" : "Si riprende");
       } catch (e) {
         setDati((d) => ({ ...d, inPausa: prima }));
         throw e;

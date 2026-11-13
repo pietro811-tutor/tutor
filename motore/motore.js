@@ -60,6 +60,23 @@ function pausaDellUtente() {
   return leggiJson(path.join(radice, "pausa.json"), {})?.attiva === true;
 }
 
+/**
+ * Il limite "scrivi solo N schede", deciso da te quando premi Riprendi (nel file pausa.json, scritto dal telefono).
+ * Ogni volta che premi Riprendi il file cambia: il conteggio riparte da capo.
+ */
+let versionePausa = null;
+let schedeRimaste = null; // null = nessun limite
+let limiteRaggiunto = false;
+function aggiornaLimite() {
+  const p = leggiJson(path.join(radice, "pausa.json"), {});
+  if (p.aggiornata !== versionePausa) {
+    versionePausa = p.aggiornata ?? "";
+    const n = Number(p.limite_schede);
+    schedeRimaste = n > 0 ? n : null;
+    limiteRaggiunto = false;
+  }
+}
+
 /** Dice all'app cosa sta facendo il motore (motore.json, scritto solo da qui). Riscrive solo se cambia, o ogni 10 minuti come "sono vivo". */
 let ultimoStato = { stato: "", cosa: "", quando: 0 };
 let inizioLavoro = null; // quando e' cominciato il lavoro in corso
@@ -82,6 +99,7 @@ function scriviStato() {
     ...(ultimoStato.stato === "lavora" && inizioLavoro ? { inizio: inizioLavoro } : {}),
     ...(media ? { media_secondi: media } : {}),
     audio_da_fare: audioDaFare,
+    ...(schedeRimaste !== null ? { schede_rimaste: Math.max(0, schedeRimaste) } : {}),
   });
 }
 
@@ -246,8 +264,14 @@ async function giroDiFondo() {
   for (;;) {
     let lavoro = null;
     try {
+      aggiornaLimite();
       if (pausaDellUtente()) {
         await segnalaStato("pausa");
+        await dormi(10000);
+        continue;
+      }
+      if (limiteRaggiunto) {
+        await segnalaStato("pausa", "limite_schede");
         await dormi(10000);
         continue;
       }
@@ -270,6 +294,13 @@ async function giroDiFondo() {
       if (lavoro.chiave.startsWith("s:")) {
         durateSchede.push(Math.round((Date.now() - t0) / 1000));
         if (durateSchede.length > 8) durateSchede.shift();
+        if (schedeRimaste !== null) {
+          schedeRimaste--;
+          if (schedeRimaste <= 0) {
+            limiteRaggiunto = true;
+            log("Ho scritto le schede che mi hai chiesto: mi fermo finché non riprendi tu.");
+          }
+        }
       }
       await archivio.pubblica(lavoro.descrizione);
     } catch (e) {
