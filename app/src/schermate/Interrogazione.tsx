@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useDati } from "../stato";
 import { Attesa, Icone, TestoRicco, Virgilio } from "../componenti";
 import { ascolta, ascoltoDisponibile, leggi, type Ascolto } from "../voce";
@@ -33,10 +33,12 @@ function mescola<T>(a: T[]): T[] {
 }
 
 export default function Interrogazione() {
-  const { schede, audio, caricaAudio, aggiornaProgressi } = useDati();
+  const { schede, audio, caricaAudio, aggiornaProgressi, progressi, esame } = useDati();
   const naviga = useNavigate();
+  const [params] = useSearchParams();
+  const gruppi = (progressi.gruppi ?? []).filter((g) => g.esame === esame?.slug);
   const [fase, setFase] = useState<Fase>("scelta");
-  const [argomento, setArgomento] = useState("tutto");
+  const [argomento, setArgomento] = useState(params.get("gruppo") ? `gruppo:${params.get("gruppo")}` : "tutto");
   const [quante, setQuante] = useState(10);
   const [soloEsame, setSoloEsame] = useState(false);
   const [coda, setCoda] = useState<Voce[]>([]);
@@ -56,7 +58,9 @@ export default function Interrogazione() {
     () => Object.values(schede).flatMap((s) => (s.domande ?? []).map((d) => ({ scheda: s.id, titolo: s.titolo, d }))),
     [schede],
   );
-  const disponibili = tutteLeDomande.filter((v) => (argomento === "tutto" || v.scheda === argomento) && (!soloEsame || v.d.tipo === "esame"));
+  const gruppoScelto = argomento.startsWith("gruppo:") ? gruppi.find((g) => g.id === argomento.slice(7)) : undefined;
+  const dellArgomento = (v: Voce) => (argomento === "tutto" ? true : gruppoScelto ? gruppoScelto.argomenti.includes(v.scheda) : v.scheda === argomento);
+  const disponibili = tutteLeDomande.filter((v) => dellArgomento(v) && (!soloEsame || v.d.tipo === "esame"));
   const conVoce = tutteLeDomande.filter((v) => audio[`${v.scheda}--q-${v.d.id}`]).length;
 
   function ferma() {
@@ -205,6 +209,15 @@ export default function Interrogazione() {
             <label htmlFor="arg">Su cosa?</label>
             <select id="arg" value={argomento} onChange={(e) => setArgomento(e.target.value)}>
               <option value="tutto">Tutto quello che ho studiato ({tutteLeDomande.length} domande)</option>
+              {gruppi.length > 0 && (
+                <optgroup label="I tuoi gruppi">
+                  {gruppi.map((g) => (
+                    <option key={g.id} value={`gruppo:${g.id}`}>
+                      📁 {g.nome} ({tutteLeDomande.filter((v) => g.argomenti.includes(v.scheda)).length})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               {Object.values(schede).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.titolo.slice(0, 70)} ({s.domande?.length ?? 0})

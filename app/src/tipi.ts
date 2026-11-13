@@ -147,6 +147,14 @@ export interface ProgressoArgomento {
   ripetizioni: { data: string; voto: number; rid?: string }[];
 }
 
+export interface GruppoArgomenti {
+  // creato da te: un tema o un blocco di studio
+  id: string;
+  nome: string;
+  esame: string; // slug della materia
+  argomenti: string[]; // id degli argomenti
+}
+
 export interface Progressi {
   // T  progressi.json
   aggiornato: string;
@@ -156,6 +164,7 @@ export interface Progressi {
   checkin: Record<string, Umore>; // per giorno
   giorni_studio: string[];
   stelle?: Record<string, 1 | 2 | 3>; // le stelle che hai deciso tu, al posto di quelle di Virgilio
+  gruppi?: GruppoArgomenti[]; // i gruppi di argomenti che hai creato tu
   interrogazioni?: { data: string; voci: { scheda: string; domanda: string; esito: "bene" | "quasi" | "rivediamo" }[] }[];
   richieste: { id: string; tipo: TipoRichiesta; argomento?: string; creata: string; testo?: string }[];
 }
