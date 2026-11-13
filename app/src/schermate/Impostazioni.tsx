@@ -105,7 +105,13 @@ function VoceAudio() {
         <span>più lenta</span>
         <span>più veloce</span>
       </div>
-      <label htmlFor="vol">Intensità (volume): {Math.round(scelte.volume * 100)}%</label>
+      <label htmlFor="timbro">Timbro: {scelte.timbro === 0 ? "naturale" : scelte.timbro < 0 ? "più caldo" : "più chiaro"}</label>
+      <input id="timbro" type="range" min="-1" max="1" step="0.1" value={scelte.timbro} onChange={(e) => cambia({ timbro: Number(e.target.value) })} />
+      <div className="riga-spaziata piccolo tenue">
+        <span>caldo e profondo</span>
+        <span>chiaro e brillante</span>
+      </div>
+      <label htmlFor="vol">Volume: {Math.round(scelte.volume * 100)}%</label>
       <input id="vol" type="range" min="0.5" max="2" step="0.1" value={scelte.volume} onChange={(e) => cambia({ volume: Number(e.target.value) })} />
       <div className="riga-spaziata piccolo tenue">
         <span>più piano</span>

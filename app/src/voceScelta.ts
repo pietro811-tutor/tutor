@@ -8,10 +8,11 @@ export interface ScelteVoce {
   voce: string;
   velocita: number; // 1 = come l'ha registrata il PC
   volume: number; // 1 = normale; sopra 1 amplifica (fino a 2)
+  timbro: number; // da -1 (caldo, profondo) a +1 (chiaro, brillante); 0 = come registrata
 }
 
 const CHIAVE = "tutor:voce-audio";
-const predefinita: ScelteVoce = { voce: "if_sara", velocita: 1, volume: 1 };
+const predefinita: ScelteVoce = { voce: "if_sara", velocita: 1, volume: 1, timbro: 0 };
 
 export function leggiScelteVoce(): ScelteVoce {
   try {
@@ -34,15 +35,23 @@ export function salvaScelteVoce(v: ScelteVoce) {
 export async function avviaAudio(url: string, scelte: ScelteVoce, alTermine: () => void, massimoMs?: number): Promise<() => void> {
   const a = new Audio(url);
   a.playbackRate = scelte.velocita;
-  a.volume = Math.min(1, scelte.volume);
+  a.volume = scelte.volume > 1 || scelte.timbro !== 0 ? 1 : scelte.volume;
   let contesto: AudioContext | null = null;
-  if (scelte.volume > 1) {
+  if (scelte.volume > 1 || scelte.timbro !== 0) {
     try {
-      // il volume oltre il normale si ottiene con un amplificatore
+      // volume oltre il normale e timbro si ottengono con un amplificatore e due filtri (bassi / acuti)
       contesto = new AudioContext();
       const guadagno = contesto.createGain();
       guadagno.gain.value = scelte.volume;
-      contesto.createMediaElementSource(a).connect(guadagno).connect(contesto.destination);
+      const bassi = contesto.createBiquadFilter();
+      bassi.type = "lowshelf";
+      bassi.frequency.value = 250;
+      bassi.gain.value = -scelte.timbro * 9;
+      const acuti = contesto.createBiquadFilter();
+      acuti.type = "highshelf";
+      acuti.frequency.value = 3000;
+      acuti.gain.value = scelte.timbro * 9;
+      contesto.createMediaElementSource(a).connect(bassi).connect(acuti).connect(guadagno).connect(contesto.destination);
       await contesto.resume();
     } catch {
       contesto = null;
