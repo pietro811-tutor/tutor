@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArchivioGitHub, ErroreArchivio } from "../archivio";
 import { Attesa, VoltoVirgilio } from "../componenti";
 import { salvaConfig, type Config } from "../stato";
-import { ricordaPassword, passwordSalvata } from "../copiaChiave";
+import { diagnosi, ricordaPassword, passwordSalvata } from "../copiaChiave";
 
 const REPO_PREDEFINITO = "pietro811-tutor/tutor-dati";
 
@@ -11,6 +11,11 @@ export default function Benvenuto({ onPronto }: { onPronto: (c: Config) => void 
   const [repo, setRepo] = useState(REPO_PREDEFINITO);
   const [errore, setErrore] = useState("");
   const [attesa, setAttesa] = useState(false);
+  const [dettagli, setDettagli] = useState<string[]>([]);
+  // perche' la chiave non c'e'? Lo scrivo qui sotto: se capita, basta uno screenshot
+  useEffect(() => {
+    void diagnosi().then(setDettagli);
+  }, []);
 
   async function entra() {
     if (!token.trim() || attesa) return;
@@ -71,6 +76,16 @@ export default function Benvenuto({ onPronto }: { onPronto: (c: Config) => void 
           🔐 Usa la password salvata (impronta)
         </button>
       </div>
+      {dettagli.length > 0 && (
+        <details className="piccolo tenue" style={{ marginTop: 14 }}>
+          <summary>Perché mi chiede la chiave? (dettagli, da mandare a Claude)</summary>
+          <div style={{ marginTop: 6, lineHeight: 1.5 }}>
+            {dettagli.map((r, i) => (
+              <div key={i}>{r}</div>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

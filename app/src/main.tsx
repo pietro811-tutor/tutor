@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
 import "./stile.css";
 import { leggiConfig, salvaConfig, ProviderDati, useDati, type Config } from "./stato";
-import { leggiCopia, passwordSalvata } from "./copiaChiave";
+import { leggiCopia, passwordSalvata, segnaAvvio } from "./copiaChiave";
 import { Icone } from "./componenti";
 import { carteDaRipassare } from "./piano";
 import Benvenuto from "./schermate/Benvenuto";
@@ -73,7 +73,15 @@ function App() {
   // se la chiave è sparita dal telefono, la ripristino dalla seconda copia
   useEffect(() => {
     if (controllato) return;
-    void (async () => (await leggiCopia()) ?? (await passwordSalvata(false)))().then((c) => {
+    void (async () => {
+      // a volte il telefono non e' pronto subito: riprovo a leggere la memoria prima di arrendermi
+      for (let tentativo = 0; tentativo < 3; tentativo++) {
+        const c = leggiConfig();
+        if (c) return c;
+        await new Promise((ok) => setTimeout(ok, 400));
+      }
+      return (await leggiCopia()) ?? (await passwordSalvata(false));
+    })().then((c) => {
       if (c) {
         salvaConfig(c);
         setConfig(c);
@@ -81,6 +89,10 @@ function App() {
       setControllato(true);
     });
   }, [controllato]);
+  // segno ogni apertura riuscita: se un giorno la chiave sparisce, si vede quando e come
+  useEffect(() => {
+    if (config) segnaAvvio();
+  }, [config]);
   if (!controllato) return null;
   // sul PC, in sviluppo, si puo' usare la cartella locale senza chiave
   if (!config && !import.meta.env.DEV) return <Benvenuto onPronto={setConfig} />;
