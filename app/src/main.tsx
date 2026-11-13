@@ -46,6 +46,25 @@ try {
   /* pazienza */
 }
 
+// aggiornamenti: appena c'e' una versione nuova l'app si ricarica da sola (e controlla ogni volta che la riapri)
+if ("serviceWorker" in navigator) {
+  const avevaGestore = !!navigator.serviceWorker.controller;
+  let ricaricata = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!avevaGestore || ricaricata) return;
+    ricaricata = true;
+    location.reload();
+  });
+  void navigator.serviceWorker.ready.then((reg) => {
+    const controlla = () => void reg.update().catch(() => {});
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") controlla();
+    });
+    window.setInterval(controlla, 30 * 60000);
+    controlla();
+  });
+}
+
 function App() {
   const [config, setConfig] = useState<Config | null>(leggiConfig());
   const [controllato, setControllato] = useState(!!leggiConfig() || import.meta.env.DEV);
