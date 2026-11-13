@@ -4,6 +4,8 @@ import { domandaConGemini, leggiChiaveGemini, pennaConGemini, valutaConGemini } 
 import type {
   Esame,
   Lezione,
+  ProgrammaUfficiale,
+  Copertura,
   StatoMotore,
   MaterialeMeta,
   Programma,
@@ -99,6 +101,8 @@ interface Dati {
   progressi: Progressi;
   audio: Record<string, Record<string, string>>; // audio pronti: scheda -> voce -> versione
   lezioni: Record<string, Lezione>; // i piani delle lezioni guidate
+  sillabo?: ProgrammaUfficiale; // il programma ufficiale dell'esame, incollato da te
+  copertura?: Copertura; // cosa copri e cosa manca rispetto al programma ufficiale
 }
 
 interface Azioni {
@@ -111,6 +115,7 @@ interface Azioni {
   inviaRichiesta(tipo: TipoRichiesta, input: Record<string, unknown>, extra?: { argomento?: string; testo?: string }): Promise<string>;
   caricaFile(file: Blob, nome: string, tipo: MaterialeMeta["tipo"], gruppo?: string): Promise<void>;
   salvaEsame(e: Esame): Promise<void>;
+  salvaSillabo(testo: string): Promise<void>;
   scegliMateria(slug: string): void;
   impostaPausa(attiva: boolean): Promise<void>;
   cambiaStelle(argomento: string, stelle: 1 | 2 | 3 | null): void; // null = torna a quelle di Virgilio
@@ -215,6 +220,9 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         if (l?.id) lezioni[l.id] = l;
       }
 
+      const sillabo = esame ? await leggiJson<ProgrammaUfficiale>(`${base}/programma-ufficiale.json`) : null;
+      const copertura = esame ? await leggiJson<Copertura>(`${base}/copertura.json`) : null;
+
       const audio: Record<string, Record<string, string>> = {};
       for (const v of albero.current)
         if (v.path.startsWith(`${base}/audio/`) && v.path.endsWith(".mp3")) {
@@ -267,6 +275,8 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         schede,
         audio,
         lezioni,
+        sillabo: sillabo ?? undefined,
+        copertura: copertura ?? undefined,
         materiali,
         risposte,
         progressi: progressiRef.current,
@@ -397,6 +407,16 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     [archivio],
   );
 
+  const salvaSillabo = useCallback<Azioni["salvaSillabo"]>(
+    async (testo) => {
+      if (!archivio || !dati.esame) return;
+      const s: ProgrammaUfficiale = { testo: testo.trim(), aggiornato: new Date().toISOString() };
+      await archivio.scrivi(`esami/${dati.esame.slug}/programma-ufficiale.json`, testoInBase64(JSON.stringify(s, null, 1)), "Programma ufficiale dell'esame");
+      setDati((d) => ({ ...d, sillabo: s }));
+    },
+    [archivio, dati.esame],
+  );
+
   const impostaPausa = useCallback<Azioni["impostaPausa"]>(
     async (attiva) => {
       if (!archivio) return;
@@ -511,8 +531,8 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   );
 
   const valore = useMemo(
-    () => ({ ...dati, programma: programmaTuo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
-    [dati, programmaTuo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
+    () => ({ ...dati, programma: programmaTuo, salvaSillabo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
+    [dati, programmaTuo, salvaSillabo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
   );
   return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
 }

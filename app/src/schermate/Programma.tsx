@@ -4,6 +4,7 @@ import { nuovoId, useDati } from "../stato";
 import { Attesa, Foglio, Stelle } from "../componenti";
 import { GRUPPI_IMPORTANZA, livello, NOMI_LIVELLO } from "../piano";
 import type { Argomento, GruppoArgomenti } from "../tipi";
+import CartaProgrammaUfficiale from "./Sillabo";
 
 type Vista = "stelle" | "gruppi";
 const CHIAVE_VISTA = "tutor:vista-programma";
@@ -78,6 +79,8 @@ export default function Programma() {
         </button>
       </div>
       {esame && <p className="tenue">{esame.nome}</p>}
+
+      <CartaProgrammaUfficiale />
 
       {argomenti.length === 0 && (
         <div className="carta vuoto">

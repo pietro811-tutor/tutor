@@ -16,6 +16,7 @@ import {
   costruisciScheda,
   leggiJson,
   leggiMateriale,
+  confrontaProgramma,
   penna,
   domanda,
   percorsi,
@@ -171,6 +172,14 @@ function prossimoLavoro() {
     const programma = leggiJson(p.programma);
     if (letti.length && (!programma || !uguali(programma.basato_su, letti)) && puoRiprovare("p:" + esame.slug)) {
       return { chiave: "p:" + esame.slug, descrizione: "Programma aggiornato", fai: () => costruisciProgramma(config, radice, esame, letti) };
+    }
+    // il programma ufficiale incollato dallo studente: confronto con i materiali (una chiamata sola, poi si rifa' solo se cambia qualcosa)
+    const sillabo = leggiJson(path.join(radice, "esami", esame.slug, "programma-ufficiale.json"));
+    if (sillabo?.testo?.trim() && programma) {
+      const cop = leggiJson(path.join(radice, "esami", esame.slug, "copertura.json"));
+      if ((cop?.sillabo_aggiornato !== sillabo.aggiornato || cop?.programma_aggiornato !== programma.aggiornato) && puoRiprovare("c:" + esame.slug)) {
+        return { chiave: "c:" + esame.slug, descrizione: "Confronto con il programma ufficiale", fai: () => confrontaProgramma(config, radice, esame, sillabo, programma, letti) };
+      }
     }
     if (programma) {
       // prima le schede dei più chiesti all'esame, poi i normali, poi i meno chiesti; le stelle decise dallo studente (progressi.json) contano di più

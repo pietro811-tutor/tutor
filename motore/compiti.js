@@ -520,3 +520,61 @@ Rispondi SOLO con JSON: {"risposta": "...", "nei_tuoi_materiali": true, "materia
     (o) => (typeof o.risposta === "string" && o.risposta.trim() ? null : "manca la risposta"),
   );
 }
+
+/** Confronta il programma ufficiale dell'esame (incollato dallo studente) con quello che i materiali coprono. */
+export async function confrontaProgramma(config, radice, esame, sillabo, programma, idLetti) {
+  const p = percorsi(radice, esame.slug);
+  const fileSillabo = path.join(cartellaLavoro(), `sillabo-${esame.slug}.txt`);
+  fs.writeFileSync(fileSillabo, sillabo.testo);
+  const fileArgomenti = path.join(cartellaLavoro(), `argomenti-${esame.slug}.json`);
+  fs.writeFileSync(fileArgomenti, JSON.stringify(programma.argomenti.map((a) => ({ id: a.id, titolo: a.titolo, sintesi: a.sintesi, materiali: a.fonti })), null, 1));
+  const indici = idLetti.map((id) => {
+    const t = leggiJson(path.join(p.testi, `${id}.json`), {});
+    return { materiale: id, titolo: t.titolo, indice: t.indice };
+  });
+  const fileIndici = path.join(cartellaLavoro(), `indici-confronto-${esame.slug}.json`);
+  fs.writeFileSync(fileIndici, JSON.stringify(indici, null, 1));
+
+  log("Confronto il programma ufficiale con i materiali…");
+  const r = await chiediJson(
+    config,
+    {
+      cwd: radice,
+      modello: "veloce",
+      prompt: `${VIRGILIO}
+
+Lo studente ha incollato il PROGRAMMA UFFICIALE dell'esame ${esame.tipo} di ${esame.nome}: l'elenco di ciò che può essere chiesto.
+Leggi ${fileSillabo} : è il programma ufficiale, scritto dallo studente (può essere un elenco, un testo continuo o un copia-incolla da un sito).
+Leggi ${fileArgomenti} : sono gli argomenti di studio che Virgilio ha costruito dai materiali dello studente (con gli id dei materiali).
+Leggi ${fileIndici} : sono gli indici dei materiali caricati, per controllare cosa trattano davvero.
+
+Il tuo compito: dire allo studente, voce per voce del programma ufficiale, se i suoi materiali la coprono.
+- Dividi il programma ufficiale nelle sue voci (un argomento per voce; se una riga ne contiene più, separali; ignora intestazioni, orari, bibliografia, modalità d'esame).
+- Per ogni voce: "stato" = "coperto" (i materiali la trattano in modo sufficiente), "parziale" (se ne parla ma in modo incompleto o di sfuggita) oppure "mancante" (nessun materiale ne parla).
+- "argomenti" = gli id degli argomenti di studio che la coprono (vuoto se mancante).
+- "nota" = una frase semplice: cosa è coperto e cosa manca; se è mancante o parziale, dì quale materiale conviene caricare (per esempio "serve il capitolo sul fegato del libro").
+- Sii ONESTO: non dire "coperto" solo perché le parole si somigliano. Se non sei sicuro, "parziale".
+- "extra" = gli id degli argomenti di studio che NON compaiono nel programma ufficiale (potrebbero non servire all'esame).
+- "riassunto" = due frasi, in tono caldo e incoraggiante, su dove si è messo lo studente.
+Rispondi SOLO con JSON: {"voci": [{"voce": "...", "stato": "coperto", "argomenti": ["id"], "nota": "..."}], "extra": ["id"], "riassunto": "..."}`,
+    },
+    (o) =>
+      Array.isArray(o.voci) && o.voci.length && o.voci.every((v) => v.voce && ["coperto", "parziale", "mancante"].includes(v.stato)) ? null : "voci incomplete",
+  );
+  const valide = new Set(programma.argomenti.map((a) => a.id));
+  const voci = r.voci.map((v) => ({
+    voce: String(v.voce),
+    stato: v.stato,
+    argomenti: (Array.isArray(v.argomenti) ? v.argomenti : []).map(String).filter((id) => valide.has(id)),
+    nota: String(v.nota ?? ""),
+  }));
+  scriviJson(path.join(radice, "esami", esame.slug, "copertura.json"), {
+    aggiornata: ora(),
+    sillabo_aggiornato: sillabo.aggiornato,
+    programma_aggiornato: programma.aggiornato,
+    voci,
+    extra: (Array.isArray(r.extra) ? r.extra : []).map(String).filter((id) => valide.has(id)),
+    riassunto: String(r.riassunto ?? ""),
+  });
+  log(`Confronto pronto: ${voci.filter((v) => v.stato === "mancante").length} voci mancanti su ${voci.length}`);
+}

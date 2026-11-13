@@ -46,6 +46,29 @@ export interface Argomento {
   fonti: string[]; // id dei materiali
 }
 
+export interface ProgrammaUfficiale {
+  // T  esami/<slug>/programma-ufficiale.json: l'elenco degli argomenti d'esame, incollato da te
+  testo: string;
+  aggiornato: string;
+}
+
+export interface VoceCopertura {
+  voce: string; // una voce del programma ufficiale
+  stato: "coperto" | "parziale" | "mancante";
+  argomenti: string[]; // gli argomenti di studio che la coprono
+  nota: string;
+}
+
+export interface Copertura {
+  // M  esami/<slug>/copertura.json: il confronto tra il programma ufficiale e i tuoi materiali
+  aggiornata: string;
+  sillabo_aggiornato: string;
+  programma_aggiornato: string;
+  voci: VoceCopertura[];
+  extra: string[]; // argomenti che hai studiato ma non sono nel programma ufficiale
+  riassunto: string;
+}
+
 export interface Programma {
   // M  esami/<slug>/programma.json
   aggiornato: string;
