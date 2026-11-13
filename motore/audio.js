@@ -46,7 +46,7 @@ export function disponibile(voce = "") {
 function partiDellaScheda(s) {
   const parti = [];
   const titolo = perLaVoce(s.titolo);
-  if (s.pillola || s.semplice) parti.push({ suffisso: "", testo: `${titolo}.\n[pausa]\n${perLaVoce(s.pillola || s.semplice)}` });
+  // niente audio del riassunto ("pillola"): lo studente non lo vuole
   if (Array.isArray(s.schema) && s.schema.length) {
     const voci = s.schema.map((x) => perLaVoce(`${x.voce}: ${x.testo}`)).join("\n[pausa]\n");
     parti.push({ suffisso: "--schema", testo: `${titolo}. Lo schema.\n[pausa]\n${voci}` });

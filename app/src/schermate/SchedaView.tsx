@@ -80,10 +80,6 @@ export default function SchedaView() {
         <Link to="/programma" className="indietro">
           {Icone.indietro} Programma
         </Link>
-        {/* nella tappa 1 (Semplice) niente audio */}
-        {tappa !== 1 && (
-          <BottoneLeggi etichetta="Ascolta" audioId={id} brani={() => [scheda.titolo, { pausa: 600 }, scheda.pillola || scheda.semplice]} />
-        )}
       </div>
       <h1>{scheda.titolo}</h1>
       {argomento && <Stelle n={argomento.importanza} />}
