@@ -4,14 +4,7 @@ import { useDati, oggi } from "../stato";
 import { Attesa, Foglio, Stelle, Virgilio } from "../componenti";
 import { Domanda } from "./Domanda";
 import { carteDaRipassare, livello, pianoDiOggi, NOMI_LIVELLO, type Livello } from "../piano";
-import { bentornato, fraseDelGiorno, rispostaUmore, saluto } from "../virgilio";
-import type { Umore } from "../tipi";
-
-const UMORI: { u: Umore; emoji: string; testo: string }[] = [
-  { u: "stanco", emoji: "😴", testo: "Stanco" },
-  { u: "normale", emoji: "🙂", testo: "Normale" },
-  { u: "carico", emoji: "🔥", testo: "Carico" },
-];
+import { bentornato, fraseDelGiorno, saluto } from "../virgilio";
 
 function giorniDaUltimoStudio(giorni: string[]) {
   const passati = giorni.filter((g) => g < oggi()).sort();
@@ -21,9 +14,9 @@ function giorniDaUltimoStudio(giorni: string[]) {
 }
 
 export default function Oggi() {
-  const { pronto, errore, esame, esami, programma, schede, materiali, progressi, aggiornaProgressi } = useDati();
+  const { pronto, errore, esame, esami, programma, schede, materiali, progressi, scegliMateria } = useDati();
   const [chiedi, setChiedi] = useState<null | { rid?: string; domanda?: string }>(null);
-  const umore = progressi.checkin[oggi()];
+  const [cambiaMateria, setCambiaMateria] = useState(false);
   const nome = progressi.nome;
 
   if (!pronto)
@@ -34,7 +27,7 @@ export default function Oggi() {
     );
 
   const argomenti = programma?.argomenti ?? [];
-  const piano = pianoDiOggi(argomenti, progressi, esame?.data_esame, umore);
+  const piano = pianoDiOggi(argomenti, progressi, esame?.data_esame);
   const carte = carteDaRipassare(schede, progressi);
   const daLeggere = materiali.filter((m) => m.stato === "attesa").length;
   const assenza = giorniDaUltimoStudio(progressi.giorni_studio);
@@ -44,16 +37,27 @@ export default function Oggi() {
 
   return (
     <div className="pagina">
-      <div className="riga-spaziata" style={{ marginBottom: 14 }}>
-        <div className="tenue piccolo">{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</div>
+      <div className="riga-spaziata" style={{ marginBottom: 4 }}>
+        {esame ? (
+          <button className="materia-titolo" onClick={() => setCambiaMateria(true)} aria-label="Cambia materia">
+            {esame.nome} <span aria-hidden="true">▾</span>
+          </button>
+        ) : (
+          <Link to="/materie" className="materia-titolo">
+            Scegli la materia ▾
+          </Link>
+        )}
         <Link to="/impostazioni" className="tenue piccolo">
           Impostazioni
         </Link>
       </div>
+      <div className="tenue piccolo" style={{ marginBottom: 14 }}>
+        {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+      </div>
 
       <Virgilio>
         <p>
-          <strong>{saluto(nome)}</strong> {umore ? rispostaUmore(umore) : (bentornato(assenza) ?? fraseDelGiorno(oggi()))}
+          <strong>{saluto(nome)}</strong> {bentornato(assenza) ?? fraseDelGiorno(oggi())}
         </p>
         {daLeggere > 0 && (
           <p className="piccolo tenue">
@@ -66,20 +70,6 @@ export default function Oggi() {
 
       {errore && <div className="avviso">Non riesco ad aggiornare: {errore}. Uso i dati già salvati sul telefono.</div>}
 
-      {!umore && (
-        <div className="carta">
-          <div className="etichetta">Come stai oggi?</div>
-          <div className="umori">
-            {UMORI.map(({ u, emoji, testo }) => (
-              <button key={u} onClick={() => aggiornaProgressi((p) => void (p.checkin[oggi()] = u))}>
-                <span>{emoji}</span>
-                {testo}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {!esame && (
         <Link to="/materie" className="carta carta-cliccabile">
           <div className="etichetta">Per cominciare</div>
@@ -91,10 +81,6 @@ export default function Oggi() {
       {esame && (
         <div className="carta riga-spaziata">
           <div>
-            <div className="etichetta">{esame.nome}</div>
-            <Link to="/materie" className="piccolo" style={{ display: "block", marginBottom: 4 }}>
-              {esami.length > 1 ? "Cambia materia" : "Aggiungi un'altra materia"}
-            </Link>
             {piano.giorni != null ? (
               <div className="tenue piccolo">{piano.giorni > 0 ? esame.tipo === "orale" ? "giorni all'orale" : "giorni all'esame" : piano.giorni === 0 ? "L'orale è oggi. In bocca al lupo!" : "Esame passato"}</div>
             ) : (
@@ -210,6 +196,29 @@ export default function Oggi() {
             )}
           </div>
         </>
+      )}
+
+      {cambiaMateria && (
+        <Foglio onChiudi={() => setCambiaMateria(false)}>
+          <div className="etichetta">Che materia studiamo?</div>
+          {esami.map((e) => (
+            <button
+              key={e.slug}
+              className={`btn btn-largo ${e.slug === esame?.slug ? "" : "btn-bordo"}`}
+              style={{ justifyContent: "flex-start", marginBottom: 8 }}
+              onClick={() => {
+                scegliMateria(e.slug);
+                setCambiaMateria(false);
+              }}
+            >
+              {e.slug === esame?.slug ? "✓ " : ""}
+              {e.nome}
+            </button>
+          ))}
+          <Link to="/materie" className="btn btn-tenue btn-largo">
+            ＋ Aggiungi un'altra materia
+          </Link>
+        </Foglio>
       )}
 
       {chiedi && (
