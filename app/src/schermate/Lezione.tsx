@@ -43,6 +43,7 @@ export default function Lezione() {
   const [errore, setErrore] = useState("");
   const [esiti, setEsiti] = useState<Record<number, EsitoVeloce>>({});
   const [parla, setParla] = useState(false);
+  const [senzaVoce, setSenzaVoce] = useState(false); // la voce di Elsa per questo pezzo non e' ancora pronta
 
   const giro = useRef(0);
   const controllo = useRef<ControlloAudio | null>(null);
@@ -118,6 +119,7 @@ export default function Lezione() {
     if (!p) return;
     setI(n);
     setTesto("");
+    setSenzaVoce(false);
     setFase("ascolta");
     window.scrollTo({ top: 0 });
     if (conIntro) await dici("_frase-l-inizio", "Cominciamo la lezione. Ti spiego un pezzo alla volta, poi tocca a te ripetere.", mio);
@@ -150,7 +152,16 @@ export default function Lezione() {
         return;
       }
     }
-    // niente audio buono: leggo con la voce del telefono
+    // la voce di Elsa per questo pezzo non e' ancora pronta: non uso quella robotica da sola, decidi tu
+    setSenzaVoce(true);
+  }
+
+  /** Solo se lo chiedi tu: legge il pezzo con la voce del telefono. */
+  function leggiConVoceTelefono() {
+    const p = passi[i];
+    if (!p) return;
+    const mio = giro.current;
+    setSenzaVoce(false);
     const concetti = p.concetti.length ? ` I concetti da ricordare sono: ${p.concetti.join(", ")}.` : "";
     fermaTelefono.current = leggi([p.titolo, { pausa: 500 }, p.testo, { pausa: 600 }, `Ora tocca a te: ripeti con parole tue.${concetti}`], () => entraInRipeti(mio));
   }
@@ -239,6 +250,10 @@ export default function Lezione() {
             {Icone.cuffie} {salvato > 0 && salvato < passi.length ? "Ricomincia dall'inizio" : "Cominciamo"}
           </button>
         </div>
+        <p className="tenue piccolo">
+          Con la voce di Elsa: {passi.filter((p) => audio[`${id}--l-${p.n}`]).length} pezzi su {passi.length}.
+          {passi.some((p) => !audio[`${id}--l-${p.n}`]) ? " Gli altri sono in preparazione sul PC." : ""}
+        </p>
         {!ascoltoDisponibile() && <div className="avviso" style={{ marginTop: 12 }}>Qui non posso ascoltarti: potrai scrivere. Sul telefono con Chrome o Brave funziona a voce.</div>}
       </div>
     );
@@ -313,7 +328,24 @@ export default function Lezione() {
         <TestoRicco testo={passo.testo} />
       </div>
 
-      {fase === "ascolta" && (
+      {fase === "ascolta" && senzaVoce && (
+        <div className="carta">
+          <p style={{ marginTop: 0 }}>
+            La voce di Elsa per questo pezzo è <strong>ancora in preparazione</strong> sul PC. Puoi leggerlo da solo qui sopra, aspettare qualche minuto, oppure
+            sentirlo con la voce del telefono.
+          </p>
+          <div className="colonna">
+            <button className="btn btn-tenue btn-largo" onClick={leggiConVoceTelefono}>
+              Leggi con la voce del telefono
+            </button>
+            <button className="btn btn-largo" onClick={() => entraInRipeti(giro.current)}>
+              Ho letto: tocca a me ripetere
+            </button>
+          </div>
+        </div>
+      )}
+
+      {fase === "ascolta" && !senzaVoce && (
         <div className="colonna">
           <div className="riga" style={{ gap: 8 }}>
             <button className="btn btn-largo" onClick={mettiInPausa} disabled={carico || !controllo.current}>
