@@ -206,7 +206,7 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
       const audio: Record<string, Record<string, string>> = {};
       for (const v of albero.current)
         if (v.path.startsWith(`${base}/audio/`) && v.path.endsWith(".mp3")) {
-          const [id, voce] = [...v.path.split("/").pop()!.replace(/.mp3$/, "").split(/.(?=[^.]+$)/)];
+          const [id, voce] = [...v.path.split("/").pop()!.replace(/\.mp3$/, "").split(/\.(?=[^.]+$)/)];
           if (id && voce) (audio[id] ??= {})[voce] = v.sha;
         }
 
