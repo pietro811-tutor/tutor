@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useDati } from "./stato";
+import { avviaAudio, leggiScelteVoce } from "./voceScelta";
 import type { ParolaChiave } from "./tipi";
 import { leggi, type Brano } from "./voce";
 
@@ -195,28 +197,44 @@ export const Icone = {
   indietro: icona(<path d="M15 5l-7 7 7 7" />),
 };
 
-/** Legge ad alta voce con la voce del telefono (gratis, funziona anche senza internet). */
-export function BottoneLeggi({ brani, etichetta = "Leggimelo" }: { brani: () => Brano[]; etichetta?: string }) {
+/** Legge ad alta voce: con l'audio buono preparato dal PC se c'e' (audioId), altrimenti con la voce del telefono. */
+export function BottoneLeggi({ brani, etichetta = "Leggimelo", audioId }: { brani: () => Brano[]; etichetta?: string; audioId?: string }) {
+  const { audio, caricaAudio } = useDati();
   const [attivo, setAttivo] = useState(false);
+  const [carico, setCarico] = useState(false);
   const ferma = useRef<(() => void) | null>(null);
   useEffect(() => () => ferma.current?.(), []);
-  if (typeof speechSynthesis === "undefined") return null;
-  function premi() {
+  const conAudio = !!audioId && Object.keys(audio[audioId] ?? {}).length > 0;
+  if (!conAudio && typeof speechSynthesis === "undefined") return null;
+  async function premi() {
     if (attivo) {
       ferma.current?.();
       ferma.current = null;
       setAttivo(false);
       return;
     }
-    setAttivo(true);
-    ferma.current = leggi(brani(), () => {
+    const alTermine = () => {
       ferma.current = null;
       setAttivo(false);
-    });
+    };
+    if (conAudio && audioId) {
+      const scelte = leggiScelteVoce();
+      const voce = audio[audioId][scelte.voce] ? scelte.voce : Object.keys(audio[audioId])[0];
+      setCarico(true);
+      const url = await caricaAudio(audioId, voce);
+      setCarico(false);
+      if (url) {
+        setAttivo(true);
+        ferma.current = await avviaAudio(url, scelte, alTermine);
+        return;
+      }
+    }
+    setAttivo(true);
+    ferma.current = leggi(brani(), alTermine);
   }
   return (
     <button className="btn btn-tenue btn-piccolo" onClick={premi}>
-      {attivo ? Icone.stop : Icone.cuffie} {attivo ? "Ferma" : etichetta}
+      {carico ? "Un attimo…" : <>{attivo ? Icone.stop : Icone.cuffie} {attivo ? "Ferma" : etichetta}</>}
     </button>
   );
 }

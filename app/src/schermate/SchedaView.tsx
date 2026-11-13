@@ -152,7 +152,7 @@ export default function SchedaView() {
         {tappa === 2 && (
           <div className="carta">
             <div style={{ textAlign: "right", marginBottom: 8 }}>
-              <BottoneLeggi brani={() => scheda.schema.flatMap((v) => [v.voce, { pausa: 300 }, v.testo, { pausa: 700 }])} etichetta="Leggimi lo schema" />
+              <BottoneLeggi brani={() => scheda.schema.flatMap((v) => [v.voce, { pausa: 300 }, v.testo, { pausa: 700 }])} etichetta="Leggimi lo schema" audioId={`${id}--schema`} />
             </div>
             {scheda.schema.map((v) => (
               <div key={v.voce} className="schema-voce">
@@ -167,7 +167,7 @@ export default function SchedaView() {
           <>
             <div className="riga-spaziata" style={{ gap: 10 }}>
               <p className="tenue piccolo" style={{ margin: 0 }}>Tocca le parole evidenziate per un approfondimento, oppure seleziona un pezzo di testo e usa la penna.</p>
-              <BottoneLeggi brani={() => [scheda.dettaglio]} />
+              <BottoneLeggi brani={() => [scheda.dettaglio]} audioId={`${id}--dettaglio`} />
             </div>
             <div className="carta">
               <TestoRicco testo={scheda.dettaglio} parole={parole} onParola={apriParola} />
