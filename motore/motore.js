@@ -60,11 +60,34 @@ function pausaDellUtente() {
 
 /** Dice all'app cosa sta facendo il motore (motore.json, scritto solo da qui). Riscrive solo se cambia, o ogni 10 minuti come "sono vivo". */
 let ultimoStato = { stato: "", cosa: "", quando: 0 };
+let inizioLavoro = null; // quando e' cominciato il lavoro in corso
+let audioDaFare = 0; // quanti audio mancano ancora
+const durateSchede = []; // quanti secondi ci sono voluti per le ultime schede: serve a stimare quanto manca
+const mediaSecondi = () => (durateSchede.length ? Math.round(durateSchede.reduce((a, b) => a + b, 0) / durateSchede.length) : null);
+// all'avvio riparto dalla media dell'altra volta
+{
+  const prima = leggiJson(path.join(radice, "motore.json"), {})?.media_secondi;
+  if (prima) durateSchede.push(prima);
+}
+
+function scriviStato() {
+  if (!ultimoStato.stato) return;
+  const media = mediaSecondi();
+  scriviJson(path.join(radice, "motore.json"), {
+    stato: ultimoStato.stato,
+    cosa: ultimoStato.cosa,
+    aggiornato: new Date().toISOString(),
+    ...(ultimoStato.stato === "lavora" && inizioLavoro ? { inizio: inizioLavoro } : {}),
+    ...(media ? { media_secondi: media } : {}),
+    audio_da_fare: audioDaFare,
+  });
+}
+
 async function segnalaStato(stato, cosa = "") {
   const cambiato = stato !== ultimoStato.stato || cosa !== ultimoStato.cosa;
   if (!cambiato && Date.now() - ultimoStato.quando < 10 * 60000) return;
   ultimoStato = { stato, cosa, quando: Date.now() };
-  scriviJson(path.join(radice, "motore.json"), { stato, cosa, aggiornato: new Date().toISOString() });
+  scriviStato();
   await archivio.pubblica("Stato del motore").catch(() => {});
 }
 
@@ -229,9 +252,15 @@ async function giroDiFondo() {
         await dormi(15000);
         continue;
       }
+      inizioLavoro = new Date().toISOString();
+      const t0 = Date.now();
       await segnalaStato("lavora", lavoro.descrizione);
       await lavoro.fai();
       fallimenti.delete(lavoro.chiave);
+      if (lavoro.chiave.startsWith("s:")) {
+        durateSchede.push(Math.round((Date.now() - t0) / 1000));
+        if (durateSchede.length > 8) durateSchede.shift();
+      }
       await archivio.pubblica(lavoro.descrizione);
     } catch (e) {
       if (e.limite) mettiInPausa(e.message);
@@ -262,10 +291,19 @@ async function giroAudio() {
       }
       if (lavori.length) {
         log(`Audio da fare (${voce}): ${lavori.length}`);
+        if (lavori.length !== audioDaFare) {
+          audioDaFare = lavori.length;
+          scriviStato(); // lo pubblica il passaggio qui sotto
+        }
         const fatti = await generaAudio(lavori.slice(0, voce === "chatterbox" ? 2 : 24), voce, velocita);
         log(`Audio pronti: ${fatti}`);
         await archivio.pubblica("Audio delle schede");
         continue;
+      }
+      if (audioDaFare !== 0) {
+        audioDaFare = 0; // tutti gli audio sono pronti
+        scriviStato();
+        await archivio.pubblica("Stato del motore");
       }
     } catch (e) {
       log(`Errore negli audio: ${e.message}`);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useDati, oggi } from "../stato";
 import { Attesa, Foglio, Stelle, Virgilio } from "../componenti";
@@ -240,7 +240,8 @@ function CartaMotore() {
   } else if (vivo && motore) {
     if (motore.stato === "lavora") {
       titolo = "Al lavoro";
-      dettaglio = motore.cosa ?? "";
+      // per le schede c'e' la barra qui sotto: niente riga doppia
+      dettaglio = motore.cosa?.startsWith("Scheda:") ? "" : (motore.cosa ?? "");
     } else if (motore.stato === "limite") {
       titolo = "Aspetta che si rinnovi la quota";
       dettaglio = "La quota del tuo Claude Pro è finita: riprende da solo appena torna disponibile.";
@@ -267,10 +268,112 @@ function CartaMotore() {
       <div className="etichetta">Virgilio sul PC</div>
       <h3 style={{ margin: "0 0 4px" }}>{titolo}</h3>
       {dettaglio && <p className="tenue piccolo" style={{ margin: "0 0 10px" }}>{dettaglio}</p>}
+      <Avanzamento attivo={!!vivo && !inPausa && motore?.stato === "lavora"} />
+      <div style={{ height: 10 }} />
       {errore && <div className="avviso" style={{ marginBottom: 10 }}>{errore}</div>}
       <button className={`btn btn-largo ${inPausa ? "" : "btn-bordo"}`} disabled={lavoro} onClick={cambia}>
         {inPausa ? "▶️ Riprendi il lavoro" : "⏸️ Metti in pausa"}
       </button>
+    </div>
+  );
+}
+
+const quantoTempo = (secondi: number) => {
+  const min = Math.round(secondi / 60);
+  if (min < 1) return "meno di un minuto";
+  if (min < 60) return `${min} min`;
+  const ore = Math.floor(min / 60);
+  return `${ore} h${min % 60 ? ` ${min % 60} min` : ""}`;
+};
+
+function Barra({ valore, totale, alto = 10 }: { valore: number; totale: number; alto?: number }) {
+  const quota = totale ? Math.min(1, valore / totale) : 0;
+  return (
+    <div style={{ height: alto, borderRadius: alto, background: "rgba(127,127,127,0.25)", overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${quota * 100}%`, background: "#7fb08a", transition: "width .6s" }} />
+    </div>
+  );
+}
+
+/** Quante schede sono pronte, quale sta scrivendo adesso e quanto manca. */
+function Avanzamento({ attivo }: { attivo: boolean }) {
+  const { programma, schede, motore } = useDati();
+  const [adesso, setAdesso] = useState(Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setAdesso(Date.now()), 15000);
+    return () => window.clearInterval(t);
+  }, []);
+  const argomenti = programma?.argomenti ?? [];
+  if (!argomenti.length) return null;
+
+  const pronte = argomenti.filter((a) => schede[a.id]).length;
+  const mancano = argomenti.length - pronte;
+  const media = motore?.media_secondi ?? 270;
+  const daInizio = attivo && motore?.inizio ? Math.max(0, (adesso - new Date(motore.inizio).getTime()) / 1000) : 0;
+  const inCorso = attivo && motore?.cosa?.startsWith("Scheda:");
+  // la scheda in corso conta "a pezzi": non sappiamo a che punto e', ma il tempo trascorso dice circa quanto
+  const frazione = inCorso ? Math.min(0.95, daInizio / media) : 0;
+  const rimasto = mancano > 0 ? (mancano - (inCorso ? frazione : 0)) * media : 0;
+  const livelli = [3, 2, 1].map((n) => {
+    const lista = argomenti.filter((a) => a.importanza === n);
+    return { n, totale: lista.length, pronte: lista.filter((a) => schede[a.id]).length };
+  });
+
+  return (
+    <div>
+      <div className="riga-spaziata">
+        <span>
+          <strong>
+            {pronte} schede pronte su {argomenti.length}
+          </strong>
+        </span>
+        {mancano > 0 && <span className="tenue piccolo">{Math.round(((pronte + (inCorso ? frazione : 0)) / argomenti.length) * 100)}%</span>}
+      </div>
+      <div style={{ margin: "6px 0 10px" }}>
+        <Barra valore={pronte + (inCorso ? frazione : 0)} totale={argomenti.length} alto={12} />
+      </div>
+      {inCorso && (
+        <div style={{ marginBottom: 10 }}>
+          <div className="tenue piccolo">Sto scrivendo adesso</div>
+          <div>{motore!.cosa!.replace(/^Scheda:\s*/, "")}</div>
+          <div style={{ margin: "6px 0 2px" }}>
+            <Barra valore={frazione} totale={1} alto={6} />
+          </div>
+          <div className="tenue piccolo">
+            da {quantoTempo(daInizio)} · di solito ci mette circa {quantoTempo(media)}
+          </div>
+        </div>
+      )}
+      {mancano > 0 && attivo && (
+        <p className="tenue piccolo" style={{ margin: "0 0 8px" }}>
+          Ne mancano {mancano}: finito tra circa {quantoTempo(rimasto)}, se il Pro regge.
+        </p>
+      )}
+      {mancano > 0 && !attivo && (
+        <p className="tenue piccolo" style={{ margin: "0 0 8px" }}>
+          Ne mancano {mancano}. A questo ritmo ci vorrebbero circa {quantoTempo(mancano * media)} di lavoro.
+        </p>
+      )}
+      <div className="piccolo">
+        {livelli.map((l) =>
+          l.totale ? (
+            <div key={l.n} className="riga" style={{ gap: 8, margin: "3px 0" }}>
+              <span style={{ width: 44 }}>{"★".repeat(l.n)}</span>
+              <div style={{ flex: 1 }}>
+                <Barra valore={l.pronte} totale={l.totale} alto={6} />
+              </div>
+              <span className="tenue" style={{ width: 44, textAlign: "right" }}>
+                {l.pronte}/{l.totale}
+              </span>
+            </div>
+          ) : null,
+        )}
+      </div>
+      {(motore?.audio_da_fare ?? 0) > 0 && (
+        <p className="tenue piccolo" style={{ margin: "8px 0 0" }}>
+          🎧 Audio con la voce di Elsa ancora da preparare: {motore!.audio_da_fare}
+        </p>
+      )}
     </div>
   );
 }

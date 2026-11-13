@@ -181,4 +181,7 @@ export interface StatoMotore {
   stato: "lavora" | "libero" | "pausa" | "limite";
   cosa?: string;
   aggiornato: string;
+  inizio?: string; // quando e' cominciato il lavoro in corso
+  media_secondi?: number; // quanto ci mette in media a scrivere una scheda
+  audio_da_fare?: number; // quanti audio con la voce di Elsa mancano ancora
 }
