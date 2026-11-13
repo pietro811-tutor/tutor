@@ -46,6 +46,31 @@ export interface Argomento {
   fonti: string[]; // id dei materiali
 }
 
+export interface DomandaRicorrente {
+  // T  esami/<slug>/domande-ricorrenti.json: le domande che fanno spesso all'esame, scritte da te
+  id: string;
+  domanda: string;
+  risposta_tua?: string; // la risposta che vuole il professore, come la dici tu
+  rid?: string; // l'ultima richiesta a Virgilio per questa domanda (la sua risposta sta in risposte/<rid>.json)
+  creata: string;
+  aggiornata: string;
+}
+
+export interface RispostaRicorrente {
+  // l'output di Virgilio per una domanda ricorrente
+  risposta: string;
+  punti_chiave: string[];
+  fonti: { materiale: string; dove?: string }[];
+  non_nei_materiali?: string;
+  revisione: {
+    giudizio: string;
+    corretto: string | string[];
+    da_aggiungere: string | string[];
+    da_correggere: string | string[];
+    risposta_migliorata: string;
+  } | null;
+}
+
 export interface ProgrammaUfficiale {
   // T  esami/<slug>/programma-ufficiale.json: l'elenco degli argomenti d'esame, incollato da te
   testo: string;
@@ -117,7 +142,7 @@ export interface Scheda {
   pillola: string; // testo da ascoltare
 }
 
-export type TipoRichiesta = "valuta_ripetizione" | "penna" | "domanda";
+export type TipoRichiesta = "valuta_ripetizione" | "penna" | "domanda" | "risposta_ricorrente";
 
 export interface Richiesta {
   // T  richieste/<id>.json

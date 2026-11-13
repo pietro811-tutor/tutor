@@ -5,6 +5,7 @@ import type {
   Esame,
   Lezione,
   ProgrammaUfficiale,
+  DomandaRicorrente,
   Copertura,
   StatoMotore,
   MaterialeMeta,
@@ -101,6 +102,7 @@ interface Dati {
   progressi: Progressi;
   audio: Record<string, Record<string, string>>; // audio pronti: scheda -> voce -> versione
   lezioni: Record<string, Lezione>; // i piani delle lezioni guidate
+  ricorrenti: DomandaRicorrente[]; // le domande che fanno spesso all'esame
   sillabo?: ProgrammaUfficiale; // il programma ufficiale dell'esame, incollato da te
   copertura?: Copertura; // cosa copri e cosa manca rispetto al programma ufficiale
 }
@@ -116,6 +118,8 @@ interface Azioni {
   caricaFile(file: Blob, nome: string, tipo: MaterialeMeta["tipo"], gruppo?: string): Promise<void>;
   salvaEsame(e: Esame): Promise<void>;
   salvaSillabo(testo: string): Promise<void>;
+  /** Cambia l'elenco delle domande ricorrenti e lo salva nell'archivio. */
+  aggiornaRicorrenti(fn: (lista: DomandaRicorrente[]) => DomandaRicorrente[]): Promise<void>;
   scegliMateria(slug: string): void;
   impostaPausa(attiva: boolean): Promise<void>;
   cambiaStelle(argomento: string, stelle: 1 | 2 | 3 | null): void; // null = torna a quelle di Virgilio
@@ -143,9 +147,13 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     risposte: {},
     audio: {},
     lezioni: {},
+    ricorrenti: [],
     progressi: leggiLocale<Progressi>(CHIAVE_PROGRESSI) ?? progressiVuoti(),
   }));
   const progressiRef = useRef(dati.progressi);
+  const ricorrentiRef = useRef<DomandaRicorrente[]>([]);
+  const codaRicorrenti = useRef<Promise<void>>(Promise.resolve());
+  const scrivendoRicorrenti = useRef(0);
   const materiaRef = useRef<string | null>(leggiLocale<string>(CHIAVE_MATERIA));
   const albero = useRef<VoceAlbero[]>([]);
   const timerSalva = useRef<number | undefined>(undefined);
@@ -223,6 +231,9 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
       const sillabo = esame ? await leggiJson<ProgrammaUfficiale>(`${base}/programma-ufficiale.json`) : null;
       const copertura = esame ? await leggiJson<Copertura>(`${base}/copertura.json`) : null;
 
+      const rec = esame ? await leggiJson<{ domande: DomandaRicorrente[] }>(`${base}/domande-ricorrenti.json`) : null;
+      if (scrivendoRicorrenti.current === 0) ricorrentiRef.current = rec?.domande ?? []; // se sto ancora salvando, tengo la mia copia
+
       const audio: Record<string, Record<string, string>> = {};
       for (const v of albero.current)
         if (v.path.startsWith(`${base}/audio/`) && v.path.endsWith(".mp3")) {
@@ -275,6 +286,7 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
         schede,
         audio,
         lezioni,
+        ricorrenti: ricorrentiRef.current,
         sillabo: sillabo ?? undefined,
         copertura: copertura ?? undefined,
         materiali,
@@ -407,6 +419,26 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
     [archivio],
   );
 
+  const aggiornaRicorrenti = useCallback<Azioni["aggiornaRicorrenti"]>(
+    (fn) => {
+      if (!archivio || !dati.esame) return Promise.resolve();
+      const slug = dati.esame.slug;
+      const nuova = fn(ricorrentiRef.current).map((d) => d);
+      ricorrentiRef.current = nuova;
+      setDati((d) => ({ ...d, ricorrenti: nuova }));
+      // le scritture vanno una dopo l'altra: cosi' l'ultima vince sempre
+      scrivendoRicorrenti.current++;
+      codaRicorrenti.current = codaRicorrenti.current
+        .catch(() => {})
+        .then(() => archivio.scrivi(`esami/${slug}/domande-ricorrenti.json`, testoInBase64(JSON.stringify({ domande: ricorrentiRef.current }, null, 1)), "Domande ricorrenti"))
+        .finally(() => {
+          scrivendoRicorrenti.current--;
+        });
+      return codaRicorrenti.current;
+    },
+    [archivio, dati.esame],
+  );
+
   const salvaSillabo = useCallback<Azioni["salvaSillabo"]>(
     async (testo) => {
       if (!archivio || !dati.esame) return;
@@ -531,8 +563,8 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   );
 
   const valore = useMemo(
-    () => ({ ...dati, programma: programmaTuo, salvaSillabo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
-    [dati, programmaTuo, salvaSillabo, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
+    () => ({ ...dati, programma: programmaTuo, salvaSillabo, aggiornaRicorrenti, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta }),
+    [dati, programmaTuo, salvaSillabo, aggiornaRicorrenti, caricaAudio, caricaTempi, cambiaStelle, sincronizza, aggiornaProgressi, inviaRichiesta, caricaFile, salvaEsame, scegliMateria, creaMateria, impostaPausa, aspettaRisposta],
   );
   return <Contesto.Provider value={valore}>{children}</Contesto.Provider>;
 }

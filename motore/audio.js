@@ -104,6 +104,24 @@ export function audioMancanti(radice, esame, voce, velocita) {
     }
   }
   const tipo = (l) => (l.id.endsWith("--dettaglio") ? 3 : l.id.includes("--l-") ? 2 : l.id.endsWith("--schema") ? 1 : 0); // prima le cose corte (domande, frasi), poi gli schemi, poi i dettagli
+  // le domande che fanno spesso all'esame: la domanda e la risposta da imparare (la tua se c'e', altrimenti quella di Virgilio)
+  const ricorrenti = leggiJson(path.join(radice, "esami", esame.slug, "domande-ricorrenti.json"), { domande: [] })?.domande ?? [];
+  for (const d of ricorrenti) {
+    if (!d?.id || !d.domanda) continue;
+    const ris = d.rid ? leggiJson(path.join(radice, "risposte", `${d.rid}.json`)) : null;
+    const giusta = (d.risposta_tua ?? "").trim() || (ris?.stato === "fatta" ? String(ris.output?.risposta ?? "").trim() : "");
+    if (!giusta) continue;
+    const versione = `${d.aggiornata}|${d.rid ?? ""}|${giusta.length}`;
+    for (const [tipo, testo] of [["q", d.domanda], ["r", giusta]]) {
+      const id = `_ricorrenti--${tipo}-${d.id}`;
+      const meta = leggiJson(path.join(dirAudio, `${id}.${voce}.json`));
+      const mp3 = path.join(dirAudio, `${id}.${voce}.mp3`);
+      const unaVolta = tipo === "q" ? d.aggiornata : versione; // la domanda cambia solo se la modifichi; la risposta anche con la revisione
+      if (meta?.aggiornata === unaVolta && meta?.voce === voce && meta?.velocita === velocita && fs.existsSync(mp3) && fs.existsSync(mp3.replace(/\.mp3$/, ".tempi.json"))) continue;
+      lavori.push({ id, aggiornata: unaVolta, testo: perLaVoce(testo), out: mp3, meta: path.join(dirAudio, `${id}.${voce}.json`) });
+    }
+  }
+
   // le frasi fisse di Virgilio nell'interrogazione (una volta sola per voce)
   for (const [nome, testo] of Object.entries(FRASI_FISSE)) {
     const id = `_frase-${nome}`;

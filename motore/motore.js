@@ -19,6 +19,7 @@ import {
   confrontaProgramma,
   penna,
   domanda,
+  rispondiRicorrente,
   percorsi,
   scriviJson,
   valutaRipetizione,
@@ -198,7 +199,7 @@ function prossimoLavoro() {
 
 // ---------- i due giri ----------
 
-const GESTORI = { valuta_ripetizione: valutaRipetizione, penna, domanda };
+const GESTORI = { valuta_ripetizione: valutaRipetizione, penna, domanda, risposta_ricorrente: rispondiRicorrente };
 
 async function rispondi(richiesta) {
   const file = path.join(radice, "risposte", `${richiesta.id}.json`);

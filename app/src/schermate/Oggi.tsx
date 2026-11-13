@@ -178,6 +178,9 @@ export default function Oggi() {
           <Link to="/interrogazione" className="btn btn-terra btn-largo">
             🎤 Interrogami a voce
           </Link>
+          <Link to="/ricorrenti" className="btn btn-bordo btn-largo" style={{ marginTop: 8 }}>
+            📌 Domande che fanno all'esame
+          </Link>
           <p className="tenue piccolo" style={{ margin: "8px 0 0" }}>
             Ti faccio le domande, rispondi parlando e ti dico subito com'è andata.
           </p>

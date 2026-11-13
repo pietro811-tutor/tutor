@@ -578,3 +578,54 @@ Rispondi SOLO con JSON: {"voci": [{"voce": "...", "stato": "coperto", "argomenti
   });
   log(`Confronto pronto: ${voci.filter((v) => v.stato === "mancante").length} voci mancanti su ${voci.length}`);
 }
+
+/** Una domanda che ricorre all'esame: scrive la risposta dai materiali dello studente e, se lui ha scritto la sua, la rivede. */
+export async function rispondiRicorrente(config, radice, richiesta) {
+  const p = percorsi(radice, richiesta.esame);
+  const { domanda: testo, risposta_tua: sua } = richiesta.input;
+  const haLaSua = typeof sua === "string" && sua.trim().length > 0;
+  log(`Domanda ricorrente: ${String(testo).slice(0, 70)}`);
+  return chiediJson(
+    config,
+    {
+      cwd: radice,
+      modello: "veloce",
+      strumenti: ["Read", "Glob", "Grep"],
+      maxTurni: 35,
+      prompt: `${VIRGILIO}
+
+Lo studente ha una DOMANDA CHE RICORRE ALL'ESAME ORALE (la fanno spesso). Eccola:
+"""
+${testo}
+"""
+${
+  haLaSua
+    ? `Ha già scritto LA SUA RISPOSTA, quella che secondo lui vuole sentire il professore:
+"""
+${sua}
+"""`
+    : "Non ha ancora scritto una sua risposta."
+}
+
+Dove trovi le sue cose (esame ${richiesta.esame}):
+- ${p.programma} : il programma, con gli argomenti e da quali materiali vengono ("fonti");
+- ${p.statoMateriali} : l'elenco dei materiali caricati, con i titoli;
+- ${p.testi} : il testo di ogni materiale (file .txt; cercaci dentro con Grep, poi leggi con offset e limit);
+- ${p.schede} : le schede già scritte (la parte "dettaglio" e le "domande").
+
+Cosa fare:
+1. Cerca nei SUOI materiali (prima le schede, poi i testi con Grep) cosa dice il professore e cosa dicono gli altri materiali su questa domanda. Se il professore dà una risposta precisa o insiste su certi punti, quelli contano più di tutto.
+2. "risposta": la risposta da dire all'orale, in italiano parlato, nell'ordine in cui la direbbe un bravo studente (definizione, poi i punti, poi il collegamento clinico). 120-250 parole, frasi brevi, **grassetto** sui termini chiave (markdown semplice). Fedele ai materiali: non inventare.
+3. "punti_chiave": 3-7 punti che non devono mancare, in frasi brevi.
+4. "fonti": i materiali o le schede che hai usato, con "dove" (pagina o minuto) quando lo sai.
+5. "non_nei_materiali": se hai dovuto aggiungere qualcosa che non c'è nei suoi materiali, o non hai trovato qualcosa di importante, dillo qui in una o due frasi; altrimenti stringa vuota.
+6. "revisione": ${
+  haLaSua
+    ? `confronta LA SUA RISPOSTA con i materiali: {"giudizio": due o tre frasi calde e oneste, "corretto": cosa è giusto, "da_aggiungere": cosa manca rispetto ai materiali, "da_correggere": cosa è sbagliato o impreciso (spiega perché), "risposta_migliorata": la sua risposta rivista, nel suo stile ma corretta e completa, senza stravolgerla (parlata, 120-250 parole)}. Se la sua risposta rispecchia il professore (come dicono i materiali), rispettala e correggi solo ciò che è davvero sbagliato.`
+    : "null (non ha scritto la sua risposta)"
+}.
+Rispondi SOLO con JSON: {"risposta": "...", "punti_chiave": ["..."], "fonti": [{"materiale": "...", "dove": "..."}], "non_nei_materiali": "", "revisione": null}`,
+    },
+    (o) => (typeof o.risposta === "string" && o.risposta.trim() && Array.isArray(o.punti_chiave) ? null : "manca la risposta"),
+  );
+}

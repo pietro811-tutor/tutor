@@ -33,7 +33,7 @@ function mescola<T>(a: T[]): T[] {
 }
 
 export default function Interrogazione() {
-  const { schede, audio, caricaAudio, aggiornaProgressi, progressi, esame } = useDati();
+  const { schede, audio, caricaAudio, aggiornaProgressi, progressi, esame, ricorrenti, risposte } = useDati();
   const naviga = useNavigate();
   const [params] = useSearchParams();
   const gruppi = (progressi.gruppi ?? []).filter((g) => g.esame === esame?.slug);
@@ -54,12 +54,18 @@ export default function Interrogazione() {
   const fermaTelefono = useRef<(() => void) | null>(null);
   const microfono = useRef<Ascolto | null>(null);
 
-  const tutteLeDomande = useMemo<Voce[]>(
-    () => Object.values(schede).flatMap((s) => (s.domande ?? []).map((d) => ({ scheda: s.id, titolo: s.titolo, d }))),
-    [schede],
-  );
+  const tutteLeDomande = useMemo<Voce[]>(() => {
+    const dalleSchede = Object.values(schede).flatMap((s) => (s.domande ?? []).map((d) => ({ scheda: s.id, titolo: s.titolo, d })));
+    const dalleRicorrenti: Voce[] = ricorrenti.flatMap((r) => {
+      const ris = r.rid && risposte[r.rid]?.stato === "fatta" ? (risposte[r.rid].output as { risposta?: string }) : undefined;
+      const giusta = r.risposta_tua?.trim() || ris?.risposta?.trim();
+      return giusta ? [{ scheda: "_ricorrenti", titolo: "Domanda che fanno all'esame", d: { id: r.id, domanda: r.domanda, risposta: giusta, tipo: "esame" as const } }] : [];
+    });
+    return [...dalleSchede, ...dalleRicorrenti];
+  }, [schede, ricorrenti, risposte]);
   const gruppoScelto = argomento.startsWith("gruppo:") ? gruppi.find((g) => g.id === argomento.slice(7)) : undefined;
-  const dellArgomento = (v: Voce) => (argomento === "tutto" ? true : gruppoScelto ? gruppoScelto.argomenti.includes(v.scheda) : v.scheda === argomento);
+  const dellArgomento = (v: Voce) =>
+    argomento === "tutto" ? true : argomento === "ricorrenti" ? v.scheda === "_ricorrenti" : gruppoScelto ? gruppoScelto.argomenti.includes(v.scheda) : v.scheda === argomento;
   const disponibili = tutteLeDomande.filter((v) => dellArgomento(v) && (!soloEsame || v.d.tipo === "esame"));
   const conVoce = tutteLeDomande.filter((v) => audio[`${v.scheda}--q-${v.d.id}`]).length;
 
@@ -209,6 +215,9 @@ export default function Interrogazione() {
             <label htmlFor="arg">Su cosa?</label>
             <select id="arg" value={argomento} onChange={(e) => setArgomento(e.target.value)}>
               <option value="tutto">Tutto quello che ho studiato ({tutteLeDomande.length} domande)</option>
+              {tutteLeDomande.some((v) => v.scheda === "_ricorrenti") && (
+                <option value="ricorrenti">📌 Domande che fanno all'esame ({tutteLeDomande.filter((v) => v.scheda === "_ricorrenti").length})</option>
+              )}
               {gruppi.length > 0 && (
                 <optgroup label="I tuoi gruppi">
                   {gruppi.map((g) => (
