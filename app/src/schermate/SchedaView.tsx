@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDati } from "../stato";
 import { Attesa, BottoneLeggi, Foglio, Icone, Stelle, TestoRicco, Virgilio } from "../componenti";
-import { leggi } from "../voce";
-import { avviaAudio, leggiScelteVoce } from "../voceScelta";
 import type { Approfondimento, ParolaChiave, Ricerca, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
 import { Domanda } from "./Domanda";
@@ -18,14 +16,12 @@ type Penna =
 export default function SchedaView() {
   const { id = "" } = useParams();
   const naviga = useNavigate();
-  const { schede, programma, progressi, aggiornaProgressi, audio, caricaAudio } = useDati();
+  const { schede, programma, progressi, aggiornaProgressi } = useDati();
   const scheda = schede[id];
   const argomento = programma?.argomenti.find((a) => a.id === id);
   const [tappa, setTappa] = useState(1);
   const [penna, setPenna] = useState<Penna | null>(null);
   const [selezione, setSelezione] = useState("");
-  const [ascolto, setAscolto] = useState<null | (() => void)>(null);
-  const [caricoAudio, setCaricoAudio] = useState(false);
   const contenuto = useRef<HTMLDivElement>(null);
   const fatte = progressi.argomenti[id]?.tappe ?? [];
 
@@ -48,8 +44,6 @@ export default function SchedaView() {
     document.addEventListener("selectionchange", controlla);
     return () => document.removeEventListener("selectionchange", controlla);
   }, []);
-
-  useEffect(() => () => ascolto?.(), [ascolto]);
 
   if (!scheda)
     return (
@@ -77,29 +71,6 @@ export default function SchedaView() {
     } else naviga("/");
   }
 
-  async function ascoltaPillola(s: Scheda) {
-    if (ascolto) {
-      ascolto();
-      setAscolto(null);
-      return;
-    }
-    // se il PC ha preparato l'audio con la voce buona, uso quello
-    const scelte = leggiScelteVoce();
-    const voceDisponibile = audio[s.id]?.[scelte.voce] ? scelte.voce : Object.keys(audio[s.id] ?? {})[0];
-    if (voceDisponibile) {
-      setCaricoAudio(true);
-      const url = await caricaAudio(s.id, voceDisponibile);
-      setCaricoAudio(false);
-      if (url) {
-        const ferma = await avviaAudio(url, scelte, () => setAscolto(null));
-        setAscolto(() => ferma);
-        return;
-      }
-    }
-    const ferma = leggi([s.titolo, { pausa: 600 }, s.pillola || s.semplice], () => setAscolto(null));
-    setAscolto(() => ferma);
-  }
-
   const parole = scheda.parole_chiave ?? [];
   const apriParola = (parola: ParolaChiave) => setPenna({ tipo: "parola", parola });
 
@@ -109,9 +80,7 @@ export default function SchedaView() {
         <Link to="/programma" className="indietro">
           {Icone.indietro} Programma
         </Link>
-        <button className="btn btn-tenue btn-piccolo" onClick={() => ascoltaPillola(scheda)}>
-          {Icone.cuffie} {caricoAudio ? "Un attimo…" : ascolto ? "Ferma" : "Ascolta"}
-        </button>
+        <BottoneLeggi etichetta="Ascolta" audioId={id} brani={() => [scheda.titolo, { pausa: 600 }, scheda.pillola || scheda.semplice]} />
       </div>
       <h1>{scheda.titolo}</h1>
       {argomento && <Stelle n={argomento.importanza} />}

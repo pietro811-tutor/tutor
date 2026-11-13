@@ -248,6 +248,7 @@ async function giroDiFondo() {
 async function giroAudio() {
   const voci = config.voce?.elenco ?? ["if_sara"]; // si fanno prima tutte le schede con la prima voce, poi con la seconda
   const velocita = config.voce?.velocita ?? 0.8;
+  if (config.audio_attivo === false) return log("Audio fermi (audio_attivo: false in config.locale.json).");
   if (!vociPronte()) return log("Voci non installate (cartella voci): salto gli audio.");
   for (;;) {
     try {

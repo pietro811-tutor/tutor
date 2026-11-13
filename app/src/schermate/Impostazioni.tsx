@@ -83,8 +83,8 @@ function VoceAudio() {
     setAttesa(false);
     if (!url) return;
     // 15 secondi bastano per sentire voce, velocita' e volume
-    const ferma = await avviaAudio(url, scelte, () => setProva(null), 15000);
-    setProva(() => ferma);
+    const c = await avviaAudio(url, scelte, () => setProva(null), { massimoMs: 15000 });
+    setProva(() => c.ferma);
   }
 
   return (

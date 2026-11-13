@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDati } from "./stato";
-import { avviaAudio, leggiScelteVoce } from "./voceScelta";
+import { avviaAudio, dimenticaPosizione, leggiScelteVoce, posizioneSalvata, type ControlloAudio } from "./voceScelta";
 import type { ParolaChiave } from "./tipi";
 import { leggi, type Brano } from "./voce";
 
@@ -197,44 +197,93 @@ export const Icone = {
   indietro: icona(<path d="M15 5l-7 7 7 7" />),
 };
 
-/** Legge ad alta voce: con l'audio buono preparato dal PC se c'e' (audioId), altrimenti con la voce del telefono. */
+/**
+ * Legge ad alta voce: con l'audio buono preparato dal PC se c'e' (audioId), altrimenti con la voce del telefono.
+ * Con l'audio buono c'e' la pausa vera: riprendi da dove eri, anche se esci e torni.
+ */
 export function BottoneLeggi({ brani, etichetta = "Leggimelo", audioId }: { brani: () => Brano[]; etichetta?: string; audioId?: string }) {
   const { audio, caricaAudio } = useDati();
-  const [attivo, setAttivo] = useState(false);
-  const [carico, setCarico] = useState(false);
-  const ferma = useRef<(() => void) | null>(null);
-  useEffect(() => () => ferma.current?.(), []);
+  const [fase, setFase] = useState<"fermo" | "carico" | "suona" | "pausa">("fermo");
+  const [daRiprendere, setDaRiprendere] = useState(false);
+  const controllo = useRef<ControlloAudio | null>(null);
+  const fermaVoceTelefono = useRef<(() => void) | null>(null);
+  const voceUsata = useRef("");
   const conAudio = !!audioId && Object.keys(audio[audioId] ?? {}).length > 0;
+
+  const chiaveAudio = (voce: string) => `${audioId}.${voce}`;
+  useEffect(() => {
+    if (!conAudio || !audioId) return;
+    const v = leggiScelteVoce().voce;
+    const voce = audio[audioId][v] ? v : Object.keys(audio[audioId])[0];
+    setDaRiprendere(posizioneSalvata(chiaveAudio(voce)) > 3);
+  }, [conAudio, audioId, fase]); // eslint-disable-line react-hooks/exhaustive-deps
+  // uscendo dalla pagina l'audio si ferma ma ricorda il punto
+  useEffect(
+    () => () => {
+      controllo.current?.ferma();
+      fermaVoceTelefono.current?.();
+    },
+    [],
+  );
   if (!conAudio && typeof speechSynthesis === "undefined") return null;
+
+  const alTermine = () => {
+    controllo.current = null;
+    fermaVoceTelefono.current = null;
+    setFase("fermo");
+  };
+
   async function premi() {
-    if (attivo) {
-      ferma.current?.();
-      ferma.current = null;
-      setAttivo(false);
+    if (fase === "carico") return;
+    if (fase === "suona") {
+      if (controllo.current) {
+        controllo.current.pausa();
+        setFase("pausa");
+      } else {
+        fermaVoceTelefono.current?.();
+        alTermine();
+      }
       return;
     }
-    const alTermine = () => {
-      ferma.current = null;
-      setAttivo(false);
-    };
+    if (fase === "pausa" && controllo.current) {
+      controllo.current.riprendi();
+      setFase("suona");
+      return;
+    }
     if (conAudio && audioId) {
       const scelte = leggiScelteVoce();
       const voce = audio[audioId][scelte.voce] ? scelte.voce : Object.keys(audio[audioId])[0];
-      setCarico(true);
+      voceUsata.current = voce;
+      setFase("carico");
       const url = await caricaAudio(audioId, voce);
-      setCarico(false);
       if (url) {
-        setAttivo(true);
-        ferma.current = await avviaAudio(url, scelte, alTermine);
+        controllo.current = await avviaAudio(url, scelte, alTermine, { chiave: chiaveAudio(voce) });
+        setFase("suona");
         return;
       }
     }
-    setAttivo(true);
-    ferma.current = leggi(brani(), alTermine);
+    setFase("suona");
+    fermaVoceTelefono.current = leggi(brani(), alTermine);
   }
+
+  function daCapo() {
+    controllo.current?.ferma();
+    if (audioId) dimenticaPosizione(chiaveAudio(voceUsata.current || leggiScelteVoce().voce));
+    alTermine();
+  }
+
+  const testo =
+    fase === "carico" ? "Un attimo…" : fase === "suona" ? "⏸ Pausa" : fase === "pausa" || daRiprendere ? "▶ Riprendi" : `${"▶ "}${etichetta}`;
   return (
-    <button className="btn btn-tenue btn-piccolo" onClick={premi}>
-      {carico ? "Un attimo…" : <>{attivo ? Icone.stop : Icone.cuffie} {attivo ? "Ferma" : etichetta}</>}
-    </button>
+    <span style={{ display: "inline-flex", gap: 6 }}>
+      <button className="btn btn-tenue btn-piccolo" onClick={premi}>
+        {testo}
+      </button>
+      {(fase === "pausa" || (fase === "fermo" && daRiprendere)) && (
+        <button className="btn btn-tenue btn-piccolo" onClick={daCapo} aria-label="Ricomincia da capo">
+          ↺ Da capo
+        </button>
+      )}
+    </span>
   );
 }

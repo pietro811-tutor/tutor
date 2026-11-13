@@ -31,11 +31,58 @@ export function salvaScelteVoce(v: ScelteVoce) {
   }
 }
 
-/** Fa partire un audio con velocita' e volume scelti. Ritorna la funzione per fermarlo. */
-export async function avviaAudio(url: string, scelte: ScelteVoce, alTermine: () => void, massimoMs?: number): Promise<() => void> {
+export interface ControlloAudio {
+  ferma(): void; // si ferma e ricorda dove eri
+  pausa(): void;
+  riprendi(): void;
+}
+
+const chiavePos = (k: string) => `tutor:pos:${k}`;
+export function posizioneSalvata(k: string): number {
+  try {
+    return Number(localStorage.getItem(chiavePos(k)) ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+export function dimenticaPosizione(k: string) {
+  try {
+    localStorage.removeItem(chiavePos(k));
+  } catch {
+    /* pazienza */
+  }
+}
+function salvaPosizione(k: string, t: number) {
+  try {
+    if (t > 3) localStorage.setItem(chiavePos(k), String(Math.floor(t)));
+  } catch {
+    /* pazienza */
+  }
+}
+
+/**
+ * Fa partire un audio con velocita', volume e timbro scelti.
+ * Con una chiave ricorda dove sei arrivato: la volta dopo riparte da li'.
+ */
+export async function avviaAudio(
+  url: string,
+  scelte: ScelteVoce,
+  alTermine: () => void,
+  opzioni: { massimoMs?: number; chiave?: string } = {},
+): Promise<ControlloAudio> {
+  const { massimoMs, chiave } = opzioni;
   const a = new Audio(url);
   a.playbackRate = scelte.velocita;
   a.volume = scelte.volume > 1 || scelte.timbro !== 0 ? 1 : scelte.volume;
+  const partenza = chiave ? posizioneSalvata(chiave) : 0;
+  if (partenza > 0)
+    a.addEventListener(
+      "loadedmetadata",
+      () => {
+        if (partenza < a.duration - 4) a.currentTime = partenza;
+      },
+      { once: true },
+    );
   let contesto: AudioContext | null = null;
   if (scelte.volume > 1 || scelte.timbro !== 0) {
     try {
@@ -58,28 +105,49 @@ export async function avviaAudio(url: string, scelte: ScelteVoce, alTermine: () 
     }
   }
   let timer: number | undefined;
-  const ferma = () => {
+  let chiuso = false;
+  const chiudi = () => {
+    if (chiuso) return;
+    chiuso = true;
     window.clearTimeout(timer);
+    if (chiave) salvaPosizione(chiave, a.currentTime);
     a.pause();
     void contesto?.close().catch(() => {});
     URL.revokeObjectURL(url);
   };
-  a.onended = () => {
-    ferma();
-    alTermine();
-  };
-  a.onerror = () => {
-    ferma();
-    alTermine();
-  };
-  await a.play().catch(() => {
-    ferma();
-    alTermine();
+  // ogni 5 secondi ricordo a che punto sei, anche se chiudi l'app di colpo
+  let ultimoSalvato = 0;
+  a.addEventListener("timeupdate", () => {
+    if (chiave && a.currentTime - ultimoSalvato > 5) {
+      ultimoSalvato = a.currentTime;
+      salvaPosizione(chiave, a.currentTime);
+    }
   });
+  const finito = () => {
+    if (chiave) dimenticaPosizione(chiave);
+    chiuso = true;
+    window.clearTimeout(timer);
+    void contesto?.close().catch(() => {});
+    URL.revokeObjectURL(url);
+    alTermine();
+  };
+  a.onended = finito;
+  a.onerror = finito;
+  await a.play().catch(finito);
   if (massimoMs)
     timer = window.setTimeout(() => {
-      ferma();
+      chiudi();
       alTermine();
     }, massimoMs);
-  return ferma;
+  return {
+    ferma: chiudi,
+    pausa: () => {
+      a.pause();
+      if (chiave) salvaPosizione(chiave, a.currentTime);
+    },
+    riprendi: () => {
+      void contesto?.resume().catch(() => {});
+      void a.play().catch(() => {});
+    },
+  };
 }
