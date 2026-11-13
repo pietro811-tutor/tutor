@@ -1,6 +1,7 @@
 // Chiede le cose a Claude Code in modalita' automatica ("claude -p").
 // Usa il login dell'abbonamento Pro gia' presente sul PC: nessun costo extra.
 
+import fs from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +25,22 @@ export class ErroreClaude extends Error {
 
 // Con l'abbonamento Pro, quando la quota è finita Claude Code risponde "Credit balance is too low".
 const SEMBRA_LIMITE = /session limit|weekly limit|hit your|limit · resets|not logged in|please run \/login|credit balance|usage limit|rate limit|limit reached|limit will reset|too many requests|overloaded|429|529/i;
+
+/** Annota quanto ha "pesato" ogni lavoro (turni, token, costo equivalente in dollari): serve a capire quanto consuma del Pro. */
+function registraConsumo(dati, modello) {
+  try {
+    const u = dati.usage ?? {};
+    const entrata = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+    const letti = u.cache_read_input_tokens ?? 0;
+    const uscita = u.output_tokens ?? 0;
+    const costo = Number(dati.total_cost_usd ?? 0);
+    const riga = `${new Date().toISOString()};${modello};turni=${dati.num_turns ?? "?"};durata_s=${Math.round((dati.duration_ms ?? 0) / 1000)};token_nuovi=${entrata};token_riletti=${letti};token_scritti=${uscita};costo_equivalente_usd=${costo.toFixed(3)}`;
+    fs.appendFileSync(path.join(QUI, "consumo.txt"), riga + "\n");
+    log(`Consumo: ${dati.num_turns ?? "?"} turni, ${entrata + letti} token letti, ${uscita} scritti, circa $${costo.toFixed(2)} a prezzi API`);
+  } catch {
+    /* il conteggio non deve mai fermare il lavoro */
+  }
+}
 
 function chiamaUnaVolta({ config, prompt, modello, strumenti, cwd, maxTurni, timeoutMs }) {
   const args = [
@@ -66,6 +83,7 @@ function chiamaUnaVolta({ config, prompt, modello, strumenti, cwd, maxTurni, tim
         const testo = String(dati.result ?? dati.subtype ?? "errore");
         return ko(new ErroreClaude(testo.slice(0, 500), { limite: SEMBRA_LIMITE.test(testo) }));
       }
+      registraConsumo(dati, modello);
       ok(String(dati.result ?? ""));
     });
     proc.stdin.end(prompt);
