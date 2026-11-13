@@ -44,11 +44,27 @@ export function disponibile(voce = "") {
   return fs.existsSync(PYTHON) && fs.existsSync(path.join(VOCI, "modelli", "kokoro-v1.0.onnx"));
 }
 
+const FRASI_VERSIONE = "frasi-v1";
+export const FRASI_FISSE = {
+  inizio: "Cominciamo l'interrogazione. Rispondi a voce, come se fossi all'esame. Quando hai finito, tocca il pulsante.",
+  bene: "Bene! Hai detto le cose giuste. Ascolta la risposta completa.",
+  quasi: "Ci sei quasi. Ti è mancato qualche punto. Ascolta la risposta.",
+  rivediamo: "Rivediamolo insieme. Ascolta la risposta giusta, e alla prossima volta ci riprovi.",
+  nonso: "Nessun problema. Ascolta la risposta, così la ricordi.",
+  prossima: "Passiamo alla prossima domanda.",
+  fine: "Per oggi abbiamo finito. Bel lavoro! Guarda il riepilogo.",
+};
+
 /** Le parti di una scheda che si possono leggere: [{ suffisso, testo }]. */
 function partiDellaScheda(s) {
   const parti = [];
   const titolo = perLaVoce(s.titolo);
   // niente audio del riassunto ("pillola"): lo studente non lo vuole
+  // le domande dell'interrogazione: una per la domanda e una per la risposta giusta
+  for (const d of s.domande ?? []) {
+    if (d.domanda) parti.push({ suffisso: `--q-${d.id}`, testo: perLaVoce(d.domanda) });
+    if (d.risposta) parti.push({ suffisso: `--r-${d.id}`, testo: perLaVoce(d.risposta) });
+  }
   if (Array.isArray(s.schema) && s.schema.length) {
     const voci = s.schema.map((x) => perLaVoce(`${x.voce}: ${x.testo}`)).join("\n[pausa]\n");
     parti.push({ suffisso: "--schema", testo: `${titolo}. Lo schema.\n[pausa]\n${voci}` });
@@ -73,7 +89,15 @@ export function audioMancanti(radice, esame, voce, velocita) {
       lavori.push({ id: s.id + parte.suffisso, aggiornata: s.aggiornata, testo: parte.testo, out: mp3, meta: path.join(dirAudio, `${nome}.json`) });
     }
   }
-  const tipo = (l) => (l.id.endsWith("--dettaglio") ? 2 : l.id.endsWith("--schema") ? 1 : 0);
+  const tipo = (l) => (l.id.endsWith("--dettaglio") ? 2 : l.id.endsWith("--schema") ? 1 : 0); // prima le cose corte (domande, frasi), poi gli schemi, poi i dettagli
+  // le frasi fisse di Virgilio nell'interrogazione (una volta sola per voce)
+  for (const [nome, testo] of Object.entries(FRASI_FISSE)) {
+    const id = `_frase-${nome}`;
+    const meta = leggiJson(path.join(dirAudio, `${id}.${voce}.json`));
+    const mp3 = path.join(dirAudio, `${id}.${voce}.mp3`);
+    if (meta?.aggiornata === FRASI_VERSIONE && meta?.voce === voce && meta?.velocita === velocita && fs.existsSync(mp3)) continue;
+    lavori.push({ id, aggiornata: FRASI_VERSIONE, testo, out: mp3, meta: path.join(dirAudio, `${id}.${voce}.json`) });
+  }
   return lavori.map((l, i) => ({ l, i })).sort((a, b) => tipo(a.l) - tipo(b.l) || a.i - b.i).map((x) => x.l);
 }
 

@@ -172,6 +172,17 @@ export default function Oggi() {
         </div>
       )}
 
+      {esame && (
+        <div className="carta">
+          <div className="etichetta">Mettiti alla prova</div>
+          <Link to="/interrogazione" className="btn btn-terra btn-largo">
+            🎤 Interrogami a voce
+          </Link>
+          <p className="tenue piccolo" style={{ margin: "8px 0 0" }}>
+            Ti faccio le domande, rispondi parlando e ti dico subito com'è andata.
+          </p>
+        </div>
+      )}
       {esame && <ChiediCarta onApri={setChiedi} />}
       <CartaMotore />
 

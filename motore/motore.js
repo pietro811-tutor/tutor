@@ -261,7 +261,7 @@ async function giroAudio() {
       }
       if (lavori.length) {
         log(`Audio da fare (${voce}): ${lavori.length}`);
-        const fatti = await generaAudio(lavori.slice(0, voce === "chatterbox" ? 2 : 8), voce, velocita);
+        const fatti = await generaAudio(lavori.slice(0, voce === "chatterbox" ? 2 : 24), voce, velocita);
         log(`Audio pronti: ${fatti}`);
         await archivio.pubblica("Audio delle schede");
         continue;
