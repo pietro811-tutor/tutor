@@ -170,7 +170,8 @@ export default function SchedaView() {
         {tappa === 5 && <Domande scheda={scheda} />}
       </div>
 
-      {/* SOLO PER PIETRO: da togliere in futuro */}
+      {/* SOLO PER PIETRO: da togliere in futuro. Solo su Schema e Dettaglio. */}
+      {(tappa === 2 || tappa === 3) && (
       <button
         className="btn btn-bordo btn-largo btn-piccolo"
         style={{ marginTop: 18 }}
@@ -178,14 +179,15 @@ export default function SchedaView() {
         onClick={async () => {
           setPreparo(true);
           try {
-            await condividiScheda(scheda);
+            await condividiScheda(scheda, tappa === 2 ? "schema" : "dettaglio");
           } finally {
             setPreparo(false);
           }
         }}
       >
-        {preparo ? "Preparo il file…" : "📤 Condividi in Word"}
+        {preparo ? "Preparo il file…" : tappa === 2 ? "📤 Condividi lo schema in Word" : "📤 Condividi il testo completo in Word"}
       </button>
+      )}
 
       <button className="btn btn-largo" style={{ marginTop: 10 }} onClick={avanti}>
         {tappa < 5 ? `Avanti: ${TAPPE[tappa]}` : "Fatto, torniamo a Oggi"}

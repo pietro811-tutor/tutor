@@ -3,7 +3,9 @@ import type { Scheda } from "./tipi";
 
 type Pezzo = import("docx").Paragraph;
 
-export async function schedaInWord(scheda: Scheda): Promise<File> {
+export type ParteScheda = "schema" | "dettaglio";
+
+export async function schedaInWord(scheda: Scheda, parte: ParteScheda): Promise<File> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
 
   // **grassetto** dentro una riga
@@ -28,35 +30,22 @@ export async function schedaInWord(scheda: Scheda): Promise<File> {
       });
 
   const corpo: Pezzo[] = [new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun(scheda.titolo)] })];
-  corpo.push(titolo("In parole semplici", HeadingLevel.HEADING_1), ...markdown(scheda.semplice));
-  if (scheda.analogia) corpo.push(titolo("Immagina così", HeadingLevel.HEADING_2), ...markdown(scheda.analogia));
-  if (scheda.schema?.length) {
-    corpo.push(titolo("Schema", HeadingLevel.HEADING_1));
-    for (const v of scheda.schema) corpo.push(titolo(v.voce, HeadingLevel.HEADING_3), ...markdown(v.testo));
+  if (parte === "schema") {
+    for (const v of scheda.schema ?? []) corpo.push(titolo(v.voce, HeadingLevel.HEADING_2), ...markdown(v.testo));
+  } else {
+    corpo.push(...markdown(scheda.dettaglio));
   }
-  corpo.push(titolo("Dettaglio", HeadingLevel.HEADING_1), ...markdown(scheda.dettaglio));
-  if (scheda.parole_chiave?.length) {
-    corpo.push(titolo("Parole chiave", HeadingLevel.HEADING_1));
-    for (const p of scheda.parole_chiave) {
-      corpo.push(titolo(p.termine, HeadingLevel.HEADING_3), ...markdown(p.spiegazione));
-      if (p.all_esame) corpo.push(righe("**All'esame:** " + p.all_esame));
-    }
-  }
-  if (scheda.domande?.length) {
-    corpo.push(titolo("Domande", HeadingLevel.HEADING_1));
-    for (const d of scheda.domande) corpo.push(righe("**" + d.domanda + "**"), ...markdown(d.risposta));
-  }
-  if (scheda.fonti?.length) corpo.push(titolo("Fonti", HeadingLevel.HEADING_2), righe(scheda.fonti.map((f) => [f.materiale, f.dove].filter(Boolean).join(", ")).join(" · ")));
+  if (parte === "dettaglio" && scheda.fonti?.length) corpo.push(titolo("Fonti", HeadingLevel.HEADING_2), righe(scheda.fonti.map((f) => [f.materiale, f.dove].filter(Boolean).join(", ")).join(" · ")));
 
   const doc = new Document({ sections: [{ children: corpo }] });
   const blob = await Packer.toBlob(doc);
-  const nome = scheda.titolo.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 60) || "scheda";
+  const nome = (scheda.titolo + (parte === "schema" ? " - schema" : " - testo completo")).replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 60) || "scheda";
   return new File([blob], `${nome}.docx`, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 }
 
 /** Apre il "Condividi" del telefono; se non c'è, scarica il file. */
-export async function condividiScheda(scheda: Scheda) {
-  const file = await schedaInWord(scheda);
+export async function condividiScheda(scheda: Scheda, parte: ParteScheda) {
+  const file = await schedaInWord(scheda, parte);
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (nav.canShare?.({ files: [file] })) {
     try {
