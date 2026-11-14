@@ -4,7 +4,8 @@ import { useDati, nuovoId } from "../stato";
 import { Attesa, Virgilio } from "../componenti";
 import type { MaterialeMeta } from "../tipi";
 
-const LIMITE_MB = 40;
+const LIMITE_MB = 40; // foto e documenti
+const LIMITE_AUDIO_MB = 600; // gli audio lunghi vanno su a pezzi
 
 /** Riduce le foto: bastano 2000 pixel per leggere bene, e si carica molto prima. */
 async function comprimiFoto(file: File): Promise<Blob> {
@@ -25,7 +26,7 @@ const ETICHETTE = { attesa: "Da leggere", letto: "Letto ✓", errore: "Problema"
 
 export default function Carica() {
   const { caricaFile, materiali, esame } = useDati();
-  const [stato, setStato] = useState<{ fatti: number; totale: number } | null>(null);
+  const [stato, setStato] = useState<{ fatti: number; totale: number; parte?: number; parti?: number } | null>(null);
   const [errore, setErrore] = useState("");
   const [ok, setOk] = useState("");
   const scatta = useRef<HTMLInputElement>(null);
@@ -38,9 +39,9 @@ export default function Carica() {
     setErrore("");
     setOk("");
     const lista = Array.from(files);
-    const troppoGrandi = lista.filter((f) => f.size > LIMITE_MB * 1e6);
+    const troppoGrandi = lista.filter((f) => f.size > (tipo === "audio" ? LIMITE_AUDIO_MB : LIMITE_MB) * 1e6);
     if (troppoGrandi.length) {
-      setErrore(`${troppoGrandi.map((f) => f.name).join(", ")}: troppo grande (oltre ${LIMITE_MB} MB). Gli audio lunghi mettili sul PC, nella cartella "audio-lezioni".`);
+      setErrore(`${troppoGrandi.map((f) => f.name).join(", ")}: troppo grande (oltre ${tipo === "audio" ? LIMITE_AUDIO_MB : LIMITE_MB} MB). Mettilo sul PC, nella cartella "audio-lezioni".`);
       return;
     }
     const gruppo = nuovoId();
@@ -50,7 +51,7 @@ export default function Carica() {
         const f = lista[i];
         const dati = tipo === "foto" ? await comprimiFoto(f) : f;
         const nome = tipo === "foto" ? f.name.replace(/\.\w+$/, "") + ".jpg" : f.name;
-        await caricaFile(dati, nome, tipo, lista.length > 1 ? gruppo : undefined);
+        await caricaFile(dati, nome, tipo, lista.length > 1 ? gruppo : undefined, (parte, parti) => setStato({ fatti: i, totale: lista.length, parte, parti }));
         setStato({ fatti: i + 1, totale: lista.length });
       }
       setOk(lista.length === 1 ? "Caricato! Lo leggo appena posso." : `Caricati ${lista.length} file! Li leggo appena posso.`);
@@ -115,7 +116,8 @@ export default function Carica() {
         <div className="carta riga">
           <Attesa />
           <span>
-            Carico {stato.fatti + 1} di {stato.totale}…
+            Carico {stato.fatti + 1} di {stato.totale}
+            {stato.parti ? ` (pezzo ${stato.parte} di ${stato.parti}: non chiudere l'app)` : ""}…
           </span>
         </div>
       )}

@@ -115,7 +115,7 @@ interface Azioni {
   sincronizza(): Promise<void>;
   aggiornaProgressi(fn: (p: Progressi) => void): void;
   inviaRichiesta(tipo: TipoRichiesta, input: Record<string, unknown>, extra?: { argomento?: string; testo?: string }): Promise<string>;
-  caricaFile(file: Blob, nome: string, tipo: MaterialeMeta["tipo"], gruppo?: string): Promise<void>;
+  caricaFile(file: Blob, nome: string, tipo: MaterialeMeta["tipo"], gruppo?: string, avanzamento?: (parte: number, totale: number) => void): Promise<void>;
   salvaEsame(e: Esame): Promise<void>;
   salvaSillabo(testo: string): Promise<void>;
   /** Cambia l'elenco delle domande ricorrenti e lo salva nell'archivio. */
@@ -398,13 +398,23 @@ export function ProviderDati({ config, children }: { config: Config | null; chil
   );
 
   const caricaFile = useCallback<Azioni["caricaFile"]>(
-    async (file, nome, tipo, gruppo) => {
+    async (file, nome, tipo, gruppo, avanzamento) => {
       if (!archivio || !dati.esame) throw new Error("Prima serve l'esame");
       const id = nuovoId();
       const est = (nome.split(".").pop() || (tipo === "foto" ? "jpg" : "bin")).toLowerCase();
       const base = `esami/${dati.esame.slug}/materiali`;
-      await archivio.scrivi(`${base}/${id}.${est}`, await fileInBase64(file), `Materiale: ${nome}`);
-      const meta: MaterialeMeta = { id, nome, tipo, file: `${id}.${est}`, gruppo, caricato: new Date().toISOString() };
+      // i file grandi (audio lunghi) vanno su a pezzi: GitHub non li accetta interi. Il PC li rimette insieme.
+      const PEZZO = 20e6;
+      const parti = file.size > PEZZO ? Math.ceil(file.size / PEZZO) : 0;
+      if (parti) {
+        for (let i = 0; i < parti; i++) {
+          avanzamento?.(i + 1, parti);
+          const nomePezzo = `${base}/${id}.${est}.p${String(i + 1).padStart(3, "0")}`;
+          await archivio.scrivi(nomePezzo, await fileInBase64(file.slice(i * PEZZO, (i + 1) * PEZZO)), `Materiale: ${nome} (parte ${i + 1}/${parti})`);
+        }
+      } else await archivio.scrivi(`${base}/${id}.${est}`, await fileInBase64(file), `Materiale: ${nome}`);
+      // la scheda del materiale si scrive per ultima: il PC la vede solo quando e' tutto arrivato
+      const meta: MaterialeMeta = { id, nome, tipo, file: `${id}.${est}`, gruppo, caricato: new Date().toISOString(), ...(parti ? { parti } : {}) };
       await archivio.scrivi(`${base}/${id}.json`, testoInBase64(JSON.stringify(meta, null, 1)), `Materiale: ${nome}`);
       setDati((d) => ({ ...d, materiali: [{ ...meta, stato: "attesa" }, ...d.materiali] }));
     },

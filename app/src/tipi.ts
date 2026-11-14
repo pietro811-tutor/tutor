@@ -15,6 +15,7 @@ export interface MaterialeMeta {
   nome: string;
   tipo: "foto" | "audio" | "documento";
   file: string; // nome del file accanto, es. "<id>.jpg"
+  parti?: number; // audio lunghi: il file e' spezzato in tanti pezzi (<id>.<est>.p001, p002...) che il PC rimette insieme
   gruppo?: string; // foto caricate insieme (pagine dello stesso capitolo)
   caricato: string;
 }

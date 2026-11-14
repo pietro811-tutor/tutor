@@ -145,6 +145,19 @@ function richiesteInAttesa() {
     .sort((a, b) => a.creata.localeCompare(b.creata));
 }
 
+/** Gli audio lunghi arrivano dal telefono a pezzi (<file>.p001, .p002...): quando ci sono tutti li rimetto insieme. */
+function ricomponiPezzi(p, m) {
+  const finale = path.join(p.materiali, m.file);
+  if (!m.parti || fs.existsSync(finale)) return;
+  const pezzi = Array.from({ length: m.parti }, (_, i) => path.join(p.materiali, `${m.file}.p${String(i + 1).padStart(3, "0")}`));
+  if (!pezzi.every((x) => fs.existsSync(x))) return; // ne manca ancora qualcuno (il git non e' ancora aggiornato)
+  const tmp = finale + ".tmp";
+  fs.writeFileSync(tmp, "");
+  for (const x of pezzi) fs.appendFileSync(tmp, fs.readFileSync(x));
+  fs.renameSync(tmp, finale);
+  log(`Rimesso insieme l'audio "${m.nome}" da ${m.parti} pezzi`);
+}
+
 function materialiDaLeggere(esame) {
   const p = percorsi(radice, esame.slug);
   // "parziale" = il testo c'è ma manca ancora l'indice: va ripreso
@@ -157,7 +170,7 @@ function materialiDaLeggere(esame) {
   const lista = elenco(p.materiali)
     .filter((f) => f.endsWith(".json"))
     .map((f) => leggiJson(path.join(p.materiali, f)))
-    .filter((m) => m?.id && !fatti.has(m.id) && fs.existsSync(path.join(p.materiali, m.file)))
+    .filter((m) => m?.id && !fatti.has(m.id) && (ricomponiPezzi(p, m), fs.existsSync(path.join(p.materiali, m.file))))
     .sort((a, b) => a.caricato.localeCompare(b.caricato))
     .map((m) => ({ ...m, percorsoFile: path.join(p.materiali, m.file) }));
   // audio lasciati direttamente sul PC: Tutor\audio-lezioni\<esame>\
