@@ -354,7 +354,19 @@ function Avanzamento({ attivo }: { attivo: boolean }) {
     return () => window.clearInterval(t);
   }, []);
   const argomenti = programma?.argomenti ?? [];
-  if (!argomenti.length) return null;
+  if (!argomenti.length) {
+    // il programma di questa materia non c'e' ancora: sto leggendo i materiali. Non so a che punto sono, ma mostro che lavora e da quanto.
+    if (!attivo || !motore?.cosa || !/^(Letto|Programma)/.test(motore.cosa)) return null;
+    const da = motore.inizio ? Math.max(0, (adesso - new Date(motore.inizio).getTime()) / 1000) : 0;
+    return (
+      <div>
+        <div className="barra-attesa" />
+        <p className="tenue piccolo" style={{ margin: "8px 0 0" }}>
+          Sto leggendo i materiali{da > 0 ? ` da ${quantoTempo(da)}` : ""}. Per un audio lungo ci vuole parecchio: non so dirti la percentuale, ma finché la barra si muove sta lavorando. Appena ho finito compaiono gli argomenti.
+        </p>
+      </div>
+    );
+  }
 
   const pronte = argomenti.filter((a) => schede[a.id]).length;
   const mancano = argomenti.length - pronte;

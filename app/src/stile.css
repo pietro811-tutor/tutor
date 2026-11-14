@@ -653,3 +653,8 @@ label {
   font-size: 0.9rem;
   opacity: 0.7;
 }
+
+/* barra che scorre: lavoro in corso di cui non conosco la percentuale */
+.barra-attesa { position: relative; height: 10px; border-radius: 10px; background: rgba(127,127,127,0.25); overflow: hidden; margin-top: 6px; }
+.barra-attesa::before { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 10px; background: #7fb08a; animation: scorre 1.6s ease-in-out infinite; }
+@keyframes scorre { 0% { left: -35%; } 100% { left: 100%; } }
