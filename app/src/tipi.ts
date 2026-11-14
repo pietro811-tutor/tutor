@@ -219,6 +219,7 @@ export interface Progressi {
   carte: Record<string, unknown>; // stato FSRS di ogni flashcard
   checkin: Record<string, Umore>; // per giorno
   giorni_studio: string[];
+  prime?: string[]; // le schede che vuoi scritte per prime, nell'ordine in cui le hai scelte
   stelle?: Record<string, 1 | 2 | 3>; // le stelle che hai deciso tu, al posto di quelle di Virgilio
   gruppi?: GruppoArgomenti[]; // i gruppi di argomenti che hai creato tu
   interrogazioni?: { data: string; voci: { scheda: string; domanda: string; esito: "bene" | "quasi" | "rivediamo" }[] }[];

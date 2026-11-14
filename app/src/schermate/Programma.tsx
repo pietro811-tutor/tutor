@@ -51,6 +51,7 @@ export default function Programma() {
   function Carta({ a }: { a: Argomento }) {
     const liv = livello(progressi, a.id);
     const pronta = !!schede[a.id];
+    const posto = (progressi.prime ?? []).indexOf(a.id);
     return (
       <div className="carta" style={{ padding: "14px 16px", position: "relative" }}>
         <div className="riga" style={{ alignItems: "flex-start" }}>
@@ -62,6 +63,22 @@ export default function Programma() {
               {a.importanza_virgilio ? " · stelle scelte da te" : ""}
             </div>
           </Link>
+          {!pronta && (
+            <button
+              className={`btn btn-piccolo ${posto >= 0 ? "" : "btn-bordo"}`}
+              aria-label="Scrivi questa scheda per prima"
+              onClick={() =>
+                aggiornaProgressi((p) => {
+                  const lista = (p.prime ??= []);
+                  const i = lista.indexOf(a.id);
+                  if (i >= 0) lista.splice(i, 1);
+                  else lista.push(a.id);
+                })
+              }
+            >
+              {posto >= 0 ? `✓ La ${posto + 1}ª` : "▶ Prima questa"}
+            </button>
+          )}
           <button className="btn btn-tenue btn-piccolo" aria-label="Cambia le stelle" onClick={() => setScegli(a.id)}>
             ⭐ Cambia
           </button>

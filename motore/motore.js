@@ -222,7 +222,10 @@ function prossimoLavoro() {
       // prima le schede dei più chiesti all'esame, poi i normali, poi i meno chiesti; le stelle decise dallo studente (progressi.json) contano di più
       const sue = leggiJson(path.join(radice, "progressi.json"), {})?.stelle ?? {};
       const stelle = (x) => sue[x.id] ?? x.importanza;
-      for (const a of [...programma.argomenti].sort((x, y) => stelle(y) - stelle(x) || x.ordine - y.ordine)) {
+      // le schede che lo studente ha chiesto "per prime" passano davanti a tutto, nell'ordine scelto
+      const prime = leggiJson(path.join(radice, "progressi.json"), {})?.prime ?? [];
+      const posto = (x) => (prime.includes(x.id) ? prime.indexOf(x.id) : Infinity);
+      for (const a of [...programma.argomenti].sort((x, y) => (posto(x) === posto(y) ? 0 : posto(x) < posto(y) ? -1 : 1) || stelle(y) - stelle(x) || x.ordine - y.ordine)) {
         const scheda = leggiJson(path.join(p.schede, `${a.id}.json`));
         if ((!scheda || !uguali(scheda.basata_su, a.fonti)) && puoRiprovare("s:" + a.id)) {
           return { chiave: "s:" + a.id, descrizione: `Scheda: ${a.titolo}`, fai: () => costruisciScheda(config, radice, esame, a, programma) };
