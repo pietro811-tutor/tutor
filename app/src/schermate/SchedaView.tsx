@@ -5,6 +5,7 @@ import { Attesa, BottoneLeggi, Foglio, Icone, Stelle, TestoRicco, Virgilio } fro
 import type { Approfondimento, ParolaChiave, Ricerca, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
 import { Domanda } from "./Domanda";
+import { condividiScheda } from "../condividiWord";
 
 const TAPPE = ["Semplice", "Schema", "Dettaglio", "Ripeti tu", "Domande"];
 
@@ -23,6 +24,7 @@ export default function SchedaView() {
   const [penna, setPenna] = useState<Penna | null>(null);
   const [selezione, setSelezione] = useState("");
   const contenuto = useRef<HTMLDivElement>(null);
+  const [preparo, setPreparo] = useState(false);
   const fatte = progressi.argomenti[id]?.tappe ?? [];
 
   // segno l'argomento come aperto
@@ -168,7 +170,24 @@ export default function SchedaView() {
         {tappa === 5 && <Domande scheda={scheda} />}
       </div>
 
-      <button className="btn btn-largo" style={{ marginTop: 18 }} onClick={avanti}>
+      {/* SOLO PER PIETRO: da togliere in futuro */}
+      <button
+        className="btn btn-bordo btn-largo btn-piccolo"
+        style={{ marginTop: 18 }}
+        disabled={preparo}
+        onClick={async () => {
+          setPreparo(true);
+          try {
+            await condividiScheda(scheda);
+          } finally {
+            setPreparo(false);
+          }
+        }}
+      >
+        {preparo ? "Preparo il file…" : "📤 Condividi in Word"}
+      </button>
+
+      <button className="btn btn-largo" style={{ marginTop: 10 }} onClick={avanti}>
         {tappa < 5 ? `Avanti: ${TAPPE[tappa]}` : "Fatto, torniamo a Oggi"}
       </button>
 
