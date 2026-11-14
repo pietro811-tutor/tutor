@@ -67,6 +67,7 @@ function pausaDellUtente() {
 let versionePausa = null;
 let schedeRimaste = null; // null = nessun limite
 let limiteRaggiunto = false;
+let materiaScelta = null; // il motore lavora su UNA materia sola: quella con cui hai premuto Riprendi sul telefono
 function aggiornaLimite() {
   const p = leggiJson(path.join(radice, "pausa.json"), {});
   if (p.aggiornata !== versionePausa) {
@@ -74,6 +75,7 @@ function aggiornaLimite() {
     const n = Number(p.limite_schede);
     schedeRimaste = n > 0 ? n : null;
     limiteRaggiunto = false;
+    materiaScelta = p.materia || null;
   }
 }
 
@@ -193,27 +195,30 @@ function idLetti(esame) {
 
 /** Il prossimo lavoro "con calma", oppure null. */
 function prossimoLavoro() {
-  for (const esame of esami()) {
+  // prima leggo i materiali nuovi e aggiorno i programmi di TUTTE le materie, poi scrivo le schede
+  // (cosi' un audio appena caricato non resta in coda dietro alle schede di un'altra materia)
+  for (const soloSchede of [false, true])
+  for (const esame of esami().filter((e) => e.slug === materiaScelta)) {
     const daLeggere = materialiDaLeggere(esame).filter((m) => puoRiprovare("m:" + m.id));
-    if (daLeggere.length) {
+    if (!soloSchede && daLeggere.length) {
       const m = daLeggere[0];
       return { chiave: "m:" + m.id, descrizione: `Letto: ${m.nome}`, fai: () => leggiMateriale(config, radice, esame, m) };
     }
     const p = percorsi(radice, esame.slug);
     const letti = idLetti(esame);
     const programma = leggiJson(p.programma);
-    if (letti.length && (!programma || !uguali(programma.basato_su, letti)) && puoRiprovare("p:" + esame.slug)) {
+    if (!soloSchede && letti.length && (!programma || !uguali(programma.basato_su, letti)) && puoRiprovare("p:" + esame.slug)) {
       return { chiave: "p:" + esame.slug, descrizione: "Programma aggiornato", fai: () => costruisciProgramma(config, radice, esame, letti) };
     }
     // il programma ufficiale incollato dallo studente: confronto con i materiali (una chiamata sola, poi si rifa' solo se cambia qualcosa)
     const sillabo = leggiJson(path.join(radice, "esami", esame.slug, "programma-ufficiale.json"));
-    if (sillabo?.testo?.trim() && programma) {
+    if (!soloSchede && sillabo?.testo?.trim() && programma) {
       const cop = leggiJson(path.join(radice, "esami", esame.slug, "copertura.json"));
       if ((cop?.sillabo_aggiornato !== sillabo.aggiornato || cop?.programma_aggiornato !== programma.aggiornato) && puoRiprovare("c:" + esame.slug)) {
         return { chiave: "c:" + esame.slug, descrizione: "Confronto con il programma ufficiale", fai: () => confrontaProgramma(config, radice, esame, sillabo, programma, letti) };
       }
     }
-    if (programma) {
+    if (soloSchede && programma) {
       // prima le schede dei più chiesti all'esame, poi i normali, poi i meno chiesti; le stelle decise dallo studente (progressi.json) contano di più
       const sue = leggiJson(path.join(radice, "progressi.json"), {})?.stelle ?? {};
       const stelle = (x) => sue[x.id] ?? x.importanza;
@@ -283,8 +288,9 @@ async function giroDiFondo() {
         await dormi(10000);
         continue;
       }
-      if (limiteRaggiunto) {
-        await segnalaStato("pausa", "limite_schede");
+      // finche' non premi Riprendi sul telefono scegliendo la materia, il motore non scrive niente
+      if (limiteRaggiunto || !materiaScelta) {
+        await segnalaStato("pausa", limiteRaggiunto ? "limite_schede" : "scegli_materia");
         await dormi(10000);
         continue;
       }

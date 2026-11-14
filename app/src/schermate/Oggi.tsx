@@ -236,7 +236,7 @@ export default function Oggi() {
 
 /** Cosa sta facendo il PC, e il pulsante per metterlo in pausa (per non finire la quota del Pro). */
 function CartaMotore() {
-  const { motore, inPausa, impostaPausa } = useDati();
+  const { motore, inPausa, impostaPausa, esame } = useDati();
   const [errore, setErrore] = useState("");
   const [lavoro, setLavoro] = useState(false);
   const [quante, setQuante] = useState<number>(() => {
@@ -255,7 +255,7 @@ function CartaMotore() {
       /* pazienza */
     }
   };
-  const fermoPerLimite = motore?.stato === "pausa" && motore.cosa === "limite_schede";
+  const fermoPerLimite = motore?.stato === "pausa" && (motore.cosa === "limite_schede" || motore.cosa === "scegli_materia");
   const vivo = motore && Date.now() - new Date(motore.aggiornato).getTime() < 15 * 60000;
 
   let titolo = "Il PC non risponde";
@@ -267,8 +267,8 @@ function CartaMotore() {
     titolo = "In pausa";
     dettaglio = "Quando il PC si accende resta fermo finché non premi Riprendi.";
   } else if (vivo && fermoPerLimite) {
-    titolo = "Si è fermato da solo";
-    dettaglio = "Ha scritto le schede che gli avevi chiesto. Quando vuoi, scegli quante altre farne e premi Riprendi.";
+    titolo = "Aspetto un tuo via";
+    dettaglio = motore?.cosa === "scegli_materia" ? `Lavoro su una materia alla volta: scegli quante schede e premi Riprendi, parto con ${esame?.nome ?? "la materia che hai in alto"}.` : "Ha scritto le schede che gli avevi chiesto. Quando vuoi, scegli quante altre farne e premi Riprendi.";
   } else if (vivo && motore) {
     if (motore.stato === "lavora") {
       titolo = "Al lavoro";
@@ -288,7 +288,7 @@ function CartaMotore() {
     setLavoro(true);
     try {
       // quando riprende (o riparte dopo uno stop per limite) dice quante schede scrivere; 0 = tutte
-      await impostaPausa(inPausa || fermoPerLimite ? false : true, inPausa || fermoPerLimite ? quante : undefined);
+      await impostaPausa(inPausa || fermoPerLimite ? false : true, inPausa || fermoPerLimite ? quante : undefined, inPausa || fermoPerLimite ? esame?.slug : undefined);
     } catch {
       setErrore("Non riesco a salvarlo. Controlla la connessione.");
     } finally {
