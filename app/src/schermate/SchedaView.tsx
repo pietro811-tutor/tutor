@@ -5,7 +5,7 @@ import { Attesa, BottoneLeggi, Foglio, Icone, Stelle, TestoRicco, Virgilio } fro
 import type { Approfondimento, ParolaChiave, Ricerca, Scheda } from "../tipi";
 import Ripeti, { testoAttesa } from "./Ripeti";
 import { Domanda } from "./Domanda";
-import { condividiScheda } from "../condividiWord";
+import { condividiFile, schedaInWord } from "../condividiWord";
 
 const TAPPE = ["Semplice", "Schema", "Dettaglio", "Ripeti tu", "Domande"];
 
@@ -24,7 +24,8 @@ export default function SchedaView() {
   const [penna, setPenna] = useState<Penna | null>(null);
   const [selezione, setSelezione] = useState("");
   const contenuto = useRef<HTMLDivElement>(null);
-  const [preparo, setPreparo] = useState(false);
+  const [fileWord, setFileWord] = useState<File | null>(null);
+  const [avvisoWord, setAvvisoWord] = useState("");
   const fatte = progressi.argomenti[id]?.tappe ?? [];
 
   // segno l'argomento come aperto
@@ -34,6 +35,18 @@ export default function SchedaView() {
         p.argomenti[id] = { ...(p.argomenti[id] ?? { tappe: [], ripetizioni: [] }), aperto: new Date().toISOString() };
       });
   }, [scheda, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // SOLO PER PIETRO: il file Word si prepara prima, cosi' al tocco la condivisione parte subito (senza attese il telefono la rifiuta)
+  useEffect(() => {
+    setFileWord(null);
+    setAvvisoWord("");
+    if (!scheda || (tappa !== 2 && tappa !== 3)) return;
+    let vivo = true;
+    schedaInWord(scheda, tappa === 2 ? "schema" : "dettaglio").then((f) => vivo && setFileWord(f)).catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [scheda, tappa]);
 
   // la penna: quando selezioni un pezzo di testo
   useEffect(() => {
@@ -172,21 +185,23 @@ export default function SchedaView() {
 
       {/* SOLO PER PIETRO: da togliere in futuro. Solo su Schema e Dettaglio. */}
       {(tappa === 2 || tappa === 3) && (
-      <button
-        className="btn btn-bordo btn-largo btn-piccolo"
-        style={{ marginTop: 18 }}
-        disabled={preparo}
-        onClick={async () => {
-          setPreparo(true);
-          try {
-            await condividiScheda(scheda, tappa === 2 ? "schema" : "dettaglio");
-          } finally {
-            setPreparo(false);
-          }
-        }}
-      >
-        {preparo ? "Preparo il file…" : tappa === 2 ? "📤 Condividi lo schema in Word" : "📤 Condividi il testo completo in Word"}
-      </button>
+        <>
+          <button
+            className="btn btn-bordo btn-largo btn-piccolo"
+            style={{ marginTop: 18 }}
+            disabled={!fileWord}
+            onClick={() => {
+              if (!fileWord) return;
+              // niente "await" prima: la condivisione deve partire subito dal tocco
+              condividiFile(fileWord, scheda.titolo).then((ok) =>
+                setAvvisoWord(ok ? "" : "Il telefono non ha aperto il menu: ho scaricato il file. Aprilo dai Download e condividilo da lì."),
+              );
+            }}
+          >
+            {!fileWord ? "Preparo il file…" : tappa === 2 ? "📤 Condividi lo schema in Word" : "📤 Condividi il testo completo in Word"}
+          </button>
+          {avvisoWord && <p className="tenue piccolo">{avvisoWord}</p>}
+        </>
       )}
 
       <button className="btn btn-largo" style={{ marginTop: 10 }} onClick={avanti}>

@@ -43,16 +43,18 @@ export async function schedaInWord(scheda: Scheda, parte: ParteScheda): Promise<
   return new File([blob], `${nome}.docx`, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 }
 
-/** Apre il "Condividi" del telefono; se non c'è, scarica il file. */
-export async function condividiScheda(scheda: Scheda, parte: ParteScheda) {
-  const file = await schedaInWord(scheda, parte);
+/**
+ * Apre il "Condividi" del telefono con il file gia' pronto (va chiamata subito dal tocco, senza attese prima:
+ * il telefono vuole che la condivisione parta dal tocco). Se non si puo', scarica il file e dice false.
+ */
+export async function condividiFile(file: File, titolo: string): Promise<boolean> {
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (nav.canShare?.({ files: [file] })) {
+  if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
     try {
-      await nav.share({ files: [file], title: scheda.titolo });
-      return;
+      await nav.share({ files: [file], title: titolo });
+      return true;
     } catch (e) {
-      if ((e as Error).name === "AbortError") return;
+      if ((e as Error).name === "AbortError") return true; // hai chiuso tu il menu
     }
   }
   const url = URL.createObjectURL(file);
@@ -61,4 +63,5 @@ export async function condividiScheda(scheda: Scheda, parte: ParteScheda) {
   a.download = file.name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return false;
 }
